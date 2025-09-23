@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int          @id @default(autoincrement())
+  nom         String
+  prenom      String
+  username    String       @unique
+  email       String       @unique
+  password    String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  actions     Action[]
+  decisions   Decision[]
+  equipements Equipement[]
+  evenements  Evenement[]
+  roles       UserRole[]
+  demandes    Demande[]
+  archive     Boolean      @default(false)
+  archivedAt  DateTime?
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  nom         String           @unique
+  slug        String           @unique
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  userRoles   UserRole[]
+  archive     Boolean          @default(false)
+  archivedAt  DateTime?
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  assignedAt DateTime  @default(now())
+  archive    Boolean   @default(false)
+  archivedAt DateTime?
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Permission {
+  id        Int              @id @default(autoincrement())
+  nom       String           @unique
+  slug      String           @unique
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  roles     RolePermission[]
+  archive   Boolean          @default(false)
+  archivedAt DateTime?
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  createdAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  archive      Boolean    @default(false)
+  archivedAt   DateTime?
+}
+
+model Decision {
+  id        Int      @id @default(autoincrement())
+  status    String
+  niveau    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    Int
+  demandeId Int
+  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  archive   Boolean  @default(false)
+  archivedAt DateTime?
+}
+
+enum DemandeStatus {
+  EN_ATTENTE
+  APPROUVEE
+  REFUSEE
+}
+
+model Demande {
+  id                Int                 @id @default(autoincrement())
+  type              String
+  dateDebut         DateTime
+  dateFin           DateTime
+  motif             String
+  status            DemandeStatus       @default(EN_ATTENTE)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  absence           Absence?
+  conge             Conge?
+  decisions         Decision[]
+  demandePermission DemandePermission?
+  userId            Int
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  archive           Boolean             @default(false)
+  archivedAt        DateTime?
+
+}
+
+model Conge {
+  id        Int      @id @default(autoincrement())
+  nbJours   Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  demandeId Int
+  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  archive   Boolean  @default(false)
+  archivedAt DateTime?
+}
+
+model Absence {
+  id            Int      @id @default(autoincrement())
+  justification String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  demandeId     Int
+  demande       Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  archive       Boolean  @default(false)
+  archivedAt    DateTime?
+}
+
+model DemandePermission {
+  id        Int      @id @default(autoincrement())
+  duree     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  demandeId Int
+  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  archive   Boolean  @default(false)
+  archivedAt DateTime?
+}
+
+model Evenement {
+  id          Int      @id @default(autoincrement())
+  titre       String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  archive     Boolean  @default(false)
+  archivedAt  DateTime?
+}
+
+model Equipement {
+  id        Int      @id @default(autoincrement())
+  nom       String
+  modele    String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  archive   Boolean  @default(false)
+  archivedAt DateTime?
+}
+
+model Action {
+  id          Int      @id @default(autoincrement())
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  archive     Boolean  @default(false)
+  archivedAt  DateTime?
+}
+
+model Beneficiaire {
+  id           Int      @id @default(autoincrement())
+  localisation String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  archive      Boolean  @default(false)
+  archivedAt   DateTime?
+}

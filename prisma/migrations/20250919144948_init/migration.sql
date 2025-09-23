@@ -1,0 +1,242 @@
+BEGIN TRY
+
+BEGIN TRAN;
+
+-- CreateTable
+CREATE TABLE [dbo].[User] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [nom] NVARCHAR(1000) NOT NULL,
+    [prenom] NVARCHAR(1000) NOT NULL,
+    [username] NVARCHAR(1000) NOT NULL,
+    [email] NVARCHAR(1000) NOT NULL,
+    [password] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [User_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [User_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [User_pkey] PRIMARY KEY CLUSTERED ([id]),
+    CONSTRAINT [User_username_key] UNIQUE NONCLUSTERED ([username]),
+    CONSTRAINT [User_email_key] UNIQUE NONCLUSTERED ([email])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Role] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [nom] NVARCHAR(1000) NOT NULL,
+    [slug] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Role_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Role_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Role_pkey] PRIMARY KEY CLUSTERED ([id]),
+    CONSTRAINT [Role_nom_key] UNIQUE NONCLUSTERED ([nom]),
+    CONSTRAINT [Role_slug_key] UNIQUE NONCLUSTERED ([slug])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[UserRole] (
+    [userId] INT NOT NULL,
+    [roleId] INT NOT NULL,
+    [assignedAt] DATETIME2 NOT NULL CONSTRAINT [UserRole_assignedAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [archive] BIT NOT NULL CONSTRAINT [UserRole_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [UserRole_pkey] PRIMARY KEY CLUSTERED ([userId],[roleId])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Permission] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [nom] NVARCHAR(1000) NOT NULL,
+    [slug] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Permission_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Permission_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Permission_pkey] PRIMARY KEY CLUSTERED ([id]),
+    CONSTRAINT [Permission_nom_key] UNIQUE NONCLUSTERED ([nom]),
+    CONSTRAINT [Permission_slug_key] UNIQUE NONCLUSTERED ([slug])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[RolePermission] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [roleId] INT NOT NULL,
+    [permissionId] INT NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [RolePermission_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [archive] BIT NOT NULL CONSTRAINT [RolePermission_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [RolePermission_pkey] PRIMARY KEY CLUSTERED ([id]),
+    CONSTRAINT [RolePermission_roleId_permissionId_key] UNIQUE NONCLUSTERED ([roleId],[permissionId])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Decision] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [status] NVARCHAR(1000) NOT NULL,
+    [niveau] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Decision_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [userId] INT NOT NULL,
+    [demandeId] INT NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Decision_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Decision_pkey] PRIMARY KEY CLUSTERED ([id])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Demande] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [type] NVARCHAR(1000) NOT NULL,
+    [dateDebut] DATETIME2 NOT NULL,
+    [dateFin] DATETIME2 NOT NULL,
+    [motif] NVARCHAR(1000) NOT NULL,
+    [status] NVARCHAR(1000) NOT NULL CONSTRAINT [Demande_status_df] DEFAULT 'EN_ATTENTE',
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Demande_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [userId] INT NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Demande_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Demande_pkey] PRIMARY KEY CLUSTERED ([id])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Conge] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [nbJours] INT NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Conge_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [demandeId] INT NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Conge_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Conge_pkey] PRIMARY KEY CLUSTERED ([id]),
+    CONSTRAINT [Conge_demandeId_key] UNIQUE NONCLUSTERED ([demandeId])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Absence] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [justification] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Absence_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [demandeId] INT NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Absence_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Absence_pkey] PRIMARY KEY CLUSTERED ([id]),
+    CONSTRAINT [Absence_demandeId_key] UNIQUE NONCLUSTERED ([demandeId])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[DemandePermission] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [duree] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [DemandePermission_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [demandeId] INT NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [DemandePermission_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [DemandePermission_pkey] PRIMARY KEY CLUSTERED ([id]),
+    CONSTRAINT [DemandePermission_demandeId_key] UNIQUE NONCLUSTERED ([demandeId])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Evenement] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [titre] NVARCHAR(1000) NOT NULL,
+    [description] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Evenement_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [userId] INT NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Evenement_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Evenement_pkey] PRIMARY KEY CLUSTERED ([id])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Equipement] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [nom] NVARCHAR(1000) NOT NULL,
+    [modele] NVARCHAR(1000) NOT NULL,
+    [status] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Equipement_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [userId] INT NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Equipement_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Equipement_pkey] PRIMARY KEY CLUSTERED ([id])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Action] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [type] NVARCHAR(1000) NOT NULL,
+    [description] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Action_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [userId] INT NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Action_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Action_pkey] PRIMARY KEY CLUSTERED ([id])
+);
+
+-- CreateTable
+CREATE TABLE [dbo].[Beneficiaire] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [localisation] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Beneficiaire_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Beneficiaire_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Beneficiaire_pkey] PRIMARY KEY CLUSTERED ([id])
+);
+
+-- AddForeignKey
+ALTER TABLE [dbo].[UserRole] ADD CONSTRAINT [UserRole_roleId_fkey] FOREIGN KEY ([roleId]) REFERENCES [dbo].[Role]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[UserRole] ADD CONSTRAINT [UserRole_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[RolePermission] ADD CONSTRAINT [RolePermission_permissionId_fkey] FOREIGN KEY ([permissionId]) REFERENCES [dbo].[Permission]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[RolePermission] ADD CONSTRAINT [RolePermission_roleId_fkey] FOREIGN KEY ([roleId]) REFERENCES [dbo].[Role]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[Decision] ADD CONSTRAINT [Decision_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[Decision] ADD CONSTRAINT [Decision_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[Demande] ADD CONSTRAINT [Demande_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[Conge] ADD CONSTRAINT [Conge_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[Absence] ADD CONSTRAINT [Absence_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[DemandePermission] ADD CONSTRAINT [DemandePermission_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[Evenement] ADD CONSTRAINT [Evenement_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[Equipement] ADD CONSTRAINT [Equipement_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[Action] ADD CONSTRAINT [Action_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+
+COMMIT TRAN;
+
+END TRY
+BEGIN CATCH
+
+IF @@TRANCOUNT > 0
+BEGIN
+    ROLLBACK TRAN;
+END;
+THROW
+
+END CATCH
