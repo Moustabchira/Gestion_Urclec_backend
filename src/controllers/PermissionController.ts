@@ -6,17 +6,41 @@ const permissionService = new PermissionService();
 
 export default class PermissionController {
     
-    public async getAllPermissions(req: Request, res: Response): Promise<void> {
+    public async getPermissions(req: Request, res: Response): Promise<void> {
+        
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+
+        const filters = {
+            nom: req.query.nom as string,
+            slug: req.query.slug as string
+        };
+
         try {
-            const permissions = await permissionService.getAllPermissions();
-            res.status(status.HTTP_STATUS_OK).json(permissions);
+            const result = await permissionService.getPermissions(page, limit, filters);
+            res.status(status.HTTP_STATUS_OK).json({
+            data: result.data,
+            meta: {
+                total: result.total,
+                page,
+                lastPage: Math.ceil(result.total / limit)
+            }
+            });
         } catch (error) {
             res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: 'Erreur lors de la récupération des permissions' });
         }
     }
 
+
     public async getPermissionById(req: Request, res: Response): Promise<void> {
+
         const id = parseInt(req.params.id);
+
+        if (isNaN(id)) {
+            res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: 'ID de permission invalide' });
+            return;
+        }
+
         try {
             const permission = await permissionService.getPermissionById(id);
             if (permission) {
@@ -30,8 +54,16 @@ export default class PermissionController {
     }
 
     public async updatePermission(req: Request, res: Response): Promise<void> {
+
         const id = parseInt(req.params.id);
+
+        if (isNaN(id)) {
+            res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: 'ID de permission invalide' });
+            return;
+        }
+
         const { name } = req.body;
+
         try {
             const updatedPermission = await permissionService.updatePermission(id, name);
             res.status(status.HTTP_STATUS_OK).json(updatedPermission);
@@ -41,7 +73,14 @@ export default class PermissionController {
     }
 
     public async deletePermission(req: Request, res: Response): Promise<void> {
+
         const id = parseInt(req.params.id);
+
+        if (isNaN(id)) {
+            res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: 'ID de permission invalide' });
+            return;
+        }
+
         try {
             await permissionService.deletePermission(id);
             res.status(status.HTTP_STATUS_OK).json({ message: 'Permission supprimée avec succès' });

@@ -1,85 +1,109 @@
 import { Request, Response } from "express";
 import RoleService from "../services/RoleService";
-import * as status from '../utils/constantes';
+import * as status from "../utils/constantes";
 
 const roleService = new RoleService();
 
 export default class RoleController {
 
-    public async getRoles(req: Request, res: Response): Promise<void> {
-        try {
-            const roles = await roleService.getRoles();
-            res.status(status.HTTP_STATUS_OK).json(roles);
-        } catch (error) {
-            res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: 'Erreur lors de la récupération des rôles' });
-        }
-    }
+  private parseId(value: string): number | null {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }
 
+        public async getRoles(req: Request, res: Response) {
+            
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 10;
 
-    public async createRole(req: Request, res: Response): Promise<void> {
-        const { nom, permissionIds } = req.body; // possibilité d’envoyer permissions à la création
-        try {
-            const newRole = await roleService.createRole(nom, permissionIds || []);
-            res.status(status.HTTP_STATUS_CREATED).json(newRole);
-        } catch (error) {
-            res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: 'Erreur lors de la création du rôle' });
-        }
-    }
+            const filters = {
+                nom: req.query.nom as string,
+                permissionId: req.query.permissionId ? parseInt(req.query.permissionId as string) : undefined,
+            };
 
-    public async getRoleById(req: Request, res: Response): Promise<void> {
-        const id = parseInt(req.params.id);
-        try {
-            const role = await roleService.getRoleById(id);
-            if (role) {
-                res.status(status.HTTP_STATUS_OK).json(role);
-            } else {
-                res.status(status.HTTP_STATUS_NOT_FOUND).json({ message: 'Rôle non trouvé' });
+            try {
+                const result = await roleService.getRoles(page, limit, filters);
+                res.status(status.HTTP_STATUS_OK).json({
+                data: result.data,
+                meta: {
+                    total: result.total,
+                    page,
+                    lastPage: Math.ceil(result.total / limit)
+                }
+                });
+            } catch (error) {
+                res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
             }
-        } catch (error) {
-            res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: 'Erreur lors de la récupération du rôle' });
         }
-    }
 
-    public async updateRole(req: Request, res: Response): Promise<void> {
-        const id = parseInt(req.params.id);
-        const { name, description, permissionIds } = req.body;
-        try {
-            const updatedRole = await roleService.updateRole(id, { name, description, permissionIds });
-            res.status(status.HTTP_STATUS_OK).json(updatedRole);
-        } catch (error) {
-            res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: 'Erreur lors de la mise à jour du rôle' });
-        }
-    }
 
-    public async deleteRole(req: Request, res: Response): Promise<void> {
-        const id = parseInt(req.params.id);
-        try {
-            const deletedRole = await roleService.deleteRole(id);
-            res.status(status.HTTP_STATUS_OK).json(deletedRole);
-        } catch (error) {
-            res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: 'Erreur lors de la suppression d\'un rôle' });
-        }
-    }
+  public async getRoleById(req: Request, res: Response) {
+    const id = this.parseId(req.params.id);
+    if (!id) return res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: "ID invalide" });
 
-    public async assignPermissionToRole(req: Request, res: Response): Promise<void> {
-        const roleId = parseInt(req.params.roleId);
-        const { permissionIds } = req.body; // accepte un ID ou un tableau
-        try {
-            const updatedRole = await roleService.assignPermissionsToRole(roleId, permissionIds);
-            res.status(status.HTTP_STATUS_OK).json(updatedRole);
-        } catch (error) {
-            res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: 'Erreur lors de l\'attribution des permissions au rôle' });
-        }
+    try {
+      const role = await roleService.getRoleById(id);
+      if (!role) return res.status(status.HTTP_STATUS_NOT_FOUND).json({ message: "Rôle non trouvé" });
+      res.status(status.HTTP_STATUS_OK).json(role);
+    } catch (error) {
+      res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
     }
+  }
 
-    public async removePermissionFromRole(req: Request, res: Response): Promise<void> {
-        const roleId = parseInt(req.params.roleId);
-        const { permissionIds } = req.body; // accepte un ID ou un tableau
-        try {
-            const updatedRole = await roleService.removePermissionsFromRole(roleId, permissionIds);
-            res.status(status.HTTP_STATUS_OK).json(updatedRole);
-        } catch (error) {
-            res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: 'Erreur lors de la suppression des permissions du rôle' });
-        }
+  public async createRole(req: Request, res: Response) {
+    try {
+      const role = await roleService.createRole(req.body);
+      res.status(status.HTTP_STATUS_CREATED).json(role);
+    } catch (error) {
+      res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
     }
+  }
+
+  public async updateRole(req: Request, res: Response) {
+    const id = this.parseId(req.params.id);
+    if (!id) return res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: "ID invalide" });
+
+    try {
+      const updatedRole = await roleService.updateRole(id, req.body);
+      res.status(status.HTTP_STATUS_OK).json(updatedRole);
+    } catch (error) {
+      res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
+    }
+  }
+
+  public async deleteRole(req: Request, res: Response) {
+    const id = this.parseId(req.params.id);
+    if (!id) return res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: "ID invalide" });
+
+    try {
+      const deletedRole = await roleService.deleteRole(id);
+      res.status(status.HTTP_STATUS_OK).json(deletedRole);
+    } catch (error) {
+      res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
+    }
+  }
+
+  public async assignPermissionToRole(req: Request, res: Response) {
+    const roleId = this.parseId(req.params.roleId);
+    if (!roleId) return res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: "ID invalide" });
+
+    try {
+      const updatedRole = await roleService.assignPermissionsToRole(roleId, req.body.permissionIds);
+      res.status(status.HTTP_STATUS_OK).json(updatedRole);
+    } catch (error) {
+      res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
+    }
+  }
+
+  public async removePermissionFromRole(req: Request, res: Response) {
+    const roleId = this.parseId(req.params.roleId);
+    if (!roleId) return res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: "ID invalide" });
+
+    try {
+      const updatedRole = await roleService.removePermissionsFromRole(roleId, req.body.permissionIds);
+      res.status(status.HTTP_STATUS_OK).json(updatedRole);
+    } catch (error) {
+      res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
+    }
+  }
 }

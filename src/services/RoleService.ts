@@ -1,148 +1,129 @@
 import prismaClient from "../utils/prismaClient";
 import { slugify } from "../utils/slugify";
+import { createRoleSchema, updateRoleSchema } from "../validations/roleSchema";
 import { Role } from "../types/index";
-
 
 export default class RoleService {
 
+    public async getRoles(
+      page = 1,
+      limit = 10,
+      filters?: { nom?: string; permissionId?: number }
+    ): Promise<{ data: Role[], total: number }> {
+      const skip = (page - 1) * limit;
 
-  public async createRole(nom: string, permissionIds: number[] = []): Promise<Role> {
-      try {
-        const slug = slugify(nom);
-        const role = await prismaClient.role.create({ data: { nom, slug } });
-
-        if (permissionIds.length > 0) {
-          await this.assignPermissionsToRole(role.id, permissionIds);
-        }
-
-        return await prismaClient.role.findUnique({
-          where: { id: role.id },
-          include: { rolePermissions: { include: { permission: true } } },
-        }) as Role;
-
-      } catch (error) {
-        throw new Error(`Erreur lors de la création du rôle : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
+      // Construire le where dynamiquement
+      const where: any = { archive: false };
+      if (filters) {
+        if (filters.nom) where.nom = { contains: filters.nom, mode: 'insensitive' };
+        if (filters.permissionId) where.rolePermissions = { some: { permissionId: filters.permissionId } };
       }
-  }
 
-  public async getRoles(): Promise<Role[]> {
-    try {
-      return await prismaClient.role.findMany({
-        where: { archive: false }, // Ne récupère que les rôles non archivés
-        include: {
-          rolePermissions: { include: { permission: true } }
-        },
-      });
-    } catch (error) {
-      throw new Error(
-        `Erreur lors de la récupération des rôles : ${
-          error instanceof Error ? error.message : "Erreur inconnue"
-        }`
-      );
+      const [data, total] = await Promise.all([
+        prismaClient.role.findMany({
+          skip,
+          take: limit,
+          where,
+          include: { rolePermissions: { include: { permission: true } } }
+        }),
+        prismaClient.role.count({ where })
+      ]);
+
+      return { data, total };
     }
-  }
 
 
   public async getRoleById(id: number): Promise<Role | null> {
-    try {
-      return await prismaClient.role.findUnique({
-        where: { id },
-        include: { rolePermissions: { include: { permission: true } } },
-      });
-    } catch (error) {
-      throw new Error(`Erreur lors de la récupération du rôle : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
-    }
+    return prismaClient.role.findUnique({
+      where: { id },
+      include: { rolePermissions: { include: { permission: true } } }
+    });
   }
 
+
   public async getRoleBySlug(slug: string): Promise<Role | null> {
-    try {
-      return await prismaClient.role.findUnique({
-        where: { slug },
-        include: { rolePermissions: { include: { permission: true } } },
-      });
-    } catch (error) {
-      throw new Error(`Erreur lors de la récupération du rôle par slug : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
+    return prismaClient.role.findUnique({
+      where: { slug },
+      include: { rolePermissions: { include: { permission: true } } },
+    });
+  }
+
+
+  public async createRole(data: any): Promise<Role> {
+    const validated = createRoleSchema.parse(data);
+    const slug = slugify(validated.nom);
+
+    const role = await prismaClient.role.create({ data: { nom: validated.nom, slug } });
+
+    if (validated.permissionIds?.length) {
+      await this.assignPermissionsToRole(role.id, validated.permissionIds);
     }
+
+    return prismaClient.role.findUnique({
+      where: { id: role.id },
+      include: { rolePermissions: { include: { permission: true } } }
+    }) as Promise<Role>;
+  }
+
+  public async updateRole(id: number, data: any): Promise<Role | null> {
+    const validated = updateRoleSchema.parse(data);
+
+    const updateData: any = {};
+    if (validated.name) {
+      updateData.nom = validated.name;
+      updateData.slug = slugify(validated.name);
+    }
+
+    await prismaClient.role.update({ where: { id }, data: updateData });
+
+    if (validated.permissionIds) {
+      await prismaClient.rolePermission.deleteMany({ where: { roleId: id } });
+      await this.assignPermissionsToRole(id, validated.permissionIds);
+    }
+
+    return prismaClient.role.findUnique({
+      where: { id },
+      include: { rolePermissions: { include: { permission: true } } }
+    });
   }
 
   public async deleteRole(id: number): Promise<Role> {
-    try {
-      return await prismaClient.role.update({
-        where: { id },
-        data: { archive: true, archivedAt: new Date() },
-      });
-    } catch (error) {
-      throw new Error(`Erreur lors de la suppression du rôle : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
-    }
+    return prismaClient.role.update({
+      where: { id },
+      data: { archive: true, archivedAt: new Date() },
+      include: { rolePermissions: { include: { permission: true } } },
+    });
   }
-
-  public async updateRole(
-    id: number,
-    data: { name?: string; description?: string; permissionIds?: number[] }
-  ): Promise<Role | null> {
-    try {
-      const updateData: any = {};
-      if (data.name) updateData.nom = data.name;
-      if (data.name) updateData.slug = slugify(data.name);
-      if (data.description) updateData.description = data.description;
-
-      await prismaClient.role.update({ where: { id }, data: updateData });
-
-      if (data.permissionIds) {
-        await prismaClient.rolePermission.deleteMany({ where: { roleId: id } });
-        await this.assignPermissionsToRole(id, data.permissionIds);
-      }
-
-      return await prismaClient.role.findUnique({
-        where: { id },
-        include: { rolePermissions: { include: { permission: true } } },
-      });
-
-    } catch (error) {
-      throw new Error(`Erreur lors de la mise à jour du rôle : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
-    }
-  }
-
 
   public async assignPermissionsToRole(roleId: number, permissionIds: number | number[]): Promise<Role> {
-        const ids = Array.isArray(permissionIds) ? permissionIds : [permissionIds];
+    const ids = Array.isArray(permissionIds) ? permissionIds : [permissionIds];
 
-        // Récupérer les permissions déjà existantes
-        const existingPermissions = await prismaClient.rolePermission.findMany({
-          where: { roleId },
-          select: { permissionId: true },
-        });
+    const existing = await prismaClient.rolePermission.findMany({ where: { roleId }, select: { permissionId: true } });
+    const existingIds = new Set(existing.map(p => p.permissionId));
+    const newIds = ids.filter(id => !existingIds.has(id));
 
-        const existingIds = new Set(existingPermissions.map(p => p.permissionId));
-        const newIds = ids.filter(id => !existingIds.has(id));
+    if (newIds.length) {
+      await prismaClient.rolePermission.createMany({
+        data: newIds.map(permissionId => ({ roleId, permissionId }))
+      });
+    }
 
-        if (newIds.length > 0) {
-          const rolePermissionData = newIds.map(permissionId => ({ roleId, permissionId }));
-          await prismaClient.rolePermission.createMany({ data: rolePermissionData });
-        }
-
-        return await prismaClient.role.findUnique({
-          where: { id: roleId },
-          include: { rolePermissions: { include: { permission: true } } },
-        }) as Role;
+    return prismaClient.role.findUnique({
+      where: { id: roleId },
+      include: { rolePermissions: { include: { permission: true } } },
+    }) as Promise<Role>;
   }
-
 
   public async removePermissionsFromRole(roleId: number, permissionIds: number | number[]): Promise<Role> {
-      const ids = Array.isArray(permissionIds) ? permissionIds : [permissionIds];
+    const ids = Array.isArray(permissionIds) ? permissionIds : [permissionIds];
 
-      await prismaClient.rolePermission.deleteMany({
-        where: {
-          roleId,
-          permissionId: { in: ids },
-        },
-      });
+    await prismaClient.rolePermission.deleteMany({
+      where: { roleId, permissionId: { in: ids } }
+    });
 
-      return await prismaClient.role.findUnique({
-        where: { id: roleId },
-        include: { rolePermissions: { include: { permission: true } } },
-      }) as Role;
+    return prismaClient.role.findUnique({
+      where: { id: roleId },
+      include: { rolePermissions: { include: { permission: true } } },
+    }) as Promise<Role>;
   }
-
-
 }

@@ -8,6 +8,7 @@ import { authMiddleware } from "../middlewares/AuthMiddleware";
 import CongeController from "../controllers/CongeController";
 import PermissionsController from "../controllers/PermissionsController";
 import AbsenceController from "../controllers/AbsenceController";
+import EvenementController from "../controllers/EvenementController";
 
 
 const authController = new AuthController();
@@ -18,6 +19,7 @@ const demandeController = new DemandeController();
 const congeController = new CongeController();
 const permissionsController = new PermissionsController();
 const absenceController = new AbsenceController();
+const evenementController = new EvenementController();
 
 
 
@@ -31,11 +33,12 @@ export default (app: Express) : void => {
 
 
     //users
-    app.get('/users', userController.getAllUsers.bind(userController));
+    app.get('/users', authMiddleware, userController.getAllUsers.bind(userController));
     app.get('/users/:id', userController.getUserById.bind(userController));
     app.put('/users/:id', userController.updateUser.bind(userController));
     app.delete('/users/:id', userController.deleteUser.bind(userController));
     app.post('/users/:userId/roles/:roleId', userController.assignRoleToUser.bind(userController));
+    app.delete('/users/:userId/roles/:roleId', userController.removeRoleFromUser.bind(userController));
 
 
     //roles
@@ -44,18 +47,19 @@ export default (app: Express) : void => {
     app.get('/roles/:id', roleController.getRoleById.bind(roleController));
     app.put('/roles/:id', roleController.updateRole.bind(roleController));
     app.delete('/roles/:id', roleController.deleteRole.bind(roleController));
-    app.post('/roles/:roleId/permissions/:permissionId', roleController.assignPermissionToRole.bind(roleController));
+    app.post('/roles/:roleId/permissions', roleController.assignPermissionToRole.bind(roleController));
+    app.delete('/roles/:roleId/permissions', roleController.removePermissionFromRole.bind(roleController));
 
 
     //permissions
-    app.get('/permission', permissionController.getAllPermissions.bind(permissionController));
+    app.get('/permission', permissionController.getPermissions.bind(permissionController));
     app.get('/permission/:id', permissionController.getPermissionById.bind(permissionController));
     app.put('/permission/:id', permissionController.updatePermission.bind(permissionController));
     app.delete('/permission/:id', permissionController.deletePermission.bind(permissionController));
 
 
     //demandes
-    app.post('/demandes', authMiddleware, demandeController.create.bind(demandeController));
+    app.post('/demandes', demandeController.create.bind(demandeController));
     app.get('/demandes', demandeController.getAll.bind(demandeController));
     app.get('/demandes/:id', demandeController.getOne.bind(demandeController));
     app.put('/demandes/:id', demandeController.update.bind(demandeController));
@@ -69,11 +73,20 @@ export default (app: Express) : void => {
 
     //les permissions demandées
     app.get('/permissions', permissionsController.getAllPermissions.bind(permissionsController));
-    app.get('/permissions/:id', permissionsController.getPermissionById.bind(permissionsController));
+    app.get('/permissions/:id', permissionsController.getPermissionsById.bind(permissionsController));
 
 
     //absences
     app.get('/absences', absenceController.getAllAbsences.bind(absenceController));
     app.get('/absences/:id', absenceController.getAbsenceById.bind(absenceController));
+
+    //evenements
+    app.get('/evenements', evenementController.getAllEvenements.bind(evenementController));
+    app.get('/evenements/:id', evenementController.getEvenementById.bind(evenementController));
+    app.post('/evenements', evenementController.createEvenement.bind(evenementController));
+    app.put('/evenements/:id', evenementController.updateEvenement.bind(evenementController));
+    app.delete('/evenements/:id', evenementController.deleteEvenement.bind(evenementController));
+
+
 
 }

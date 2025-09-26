@@ -5,7 +5,7 @@ import RoleService from "./RoleService";
 import PermissionService from "./PermissionService";
 import { User, AuthPayload } from "../types/index";
 
-const SECRET_KEY = process.env.SECRET_KEY || "default_secret_key";
+const SECRET_KEY = process.env.JWT_SECRET || "default_jwt_secret";
 
 interface RegisterData {
   nom: string;
@@ -43,7 +43,7 @@ export default class AuthService {
         let existingRole = await roleService.getRoleBySlug(role.name);
         if (!existingRole) {
           const permissionIds = role.permissions ? await permissionService.getPermissionIdsBySlugs(role.permissions) : [];
-          existingRole = await roleService.createRole(role.name, permissionIds);
+          existingRole = await roleService.createRole({ nom: role.name, permissionIds });
         }
 
         await prismaClient.userRole.create({ data: { userId: newUser.id, roleId: existingRole.id } });
@@ -57,31 +57,40 @@ export default class AuthService {
   }
 
   public async login(email: string, password: string): Promise<LoginResult> {
-    try {
-      const user = await prismaClient.user.findUnique({
-        where: { email },
-        include: { roles: { include: { role: true } } },
-      });
-      if (!user) throw new Error("Utilisateur non trouvé");
 
-      const isValid = await bcrypt.compare(password, user.password);
-      if (!isValid) throw new Error("Mot de passe incorrect");
+      try {
 
-      const userRoles = user.roles.map(ur => ur.role.slug);
+        const user = await prismaClient.user.findUnique({
+          where: { email },
+          include: { roles: { include: { role: true } } },
+        });
+        
+        if (!user) throw new Error("Utilisateur non trouvé");
 
-      const token = jwt.sign({ id: user.id, roles: userRoles }, SECRET_KEY, { expiresIn: "1h" });
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) throw new Error("Mot de passe incorrect");
 
-      const userPayload: AuthPayload = { userId: user.id, email: user.email, username: user.username, roles: userRoles };
+        const userRoles = user.roles.map(ur => ur.role.slug);
 
-      return { 
-        token, 
-        userPayload: userPayload, 
-      };
-    } catch (error) {
-      throw new Error(`Erreur lors de la connexion : ${
-        error instanceof Error ? error.message : "Erreur inconnue"
-        }`
-      );
-    }
+        const token = jwt.sign({ 
+          userId: user.id, 
+          roles: userRoles }, 
+          SECRET_KEY,
+          { expiresIn: "1h" }
+        );
+
+
+        const userPayload: AuthPayload = { userId: user.id, email: user.email, username: user.username, roles: userRoles };
+
+        return { 
+          token, 
+          userPayload: userPayload, 
+        };
+      } catch (error) {
+        throw new Error(`Erreur lors de la connexion : ${
+          error instanceof Error ? error.message : "Erreur inconnue"
+          }`
+        );
+      }
   }
 }

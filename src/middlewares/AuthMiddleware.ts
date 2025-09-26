@@ -23,11 +23,11 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
             return;
         }
 
-        const payload: any = jwt.verify(token, SECRET_KEY);
-        const userId = payload.userId;
+        const decoded = jwt.verify(token, SECRET_KEY) as { userId: number, roles: string[] };
+        const { userId } = decoded;
 
 
-        if (!payload) {
+        if (!userId) {
             res.status(status.HTTP_STATUS_FORBIDDEN).json({ message: 'Token invalide ou expiré' });
             return;
         }
@@ -39,7 +39,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
                     include: {
                         role: {
                             include: {
-                                permissions: {
+                                rolePermissions: {
                                     include: {
                                         permission: true
                                     }
@@ -57,7 +57,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         }
 
         const permissions: string[] = user.roles.flatMap(ur => 
-            ur.role.permissions.map(rp => rp.permission.nom)
+            ur.role.rolePermissions.map(rp => rp.permission.slug)
         );
 
         req.user = { 

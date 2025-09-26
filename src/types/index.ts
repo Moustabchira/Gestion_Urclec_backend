@@ -84,10 +84,10 @@ export interface Demande {
   status: string; // "EN_ATTENTE" | "APPROUVEE" | "REFUSEE"
   createdAt: Date;
   updatedAt: Date;
-  absence?: Absence;
-  conge?: Conge;
+  conge: Conge | null;
+  absence: Absence | null;
+  demandePermission: DemandePermission | null;
   decisions?: Decision[];
-  demandePermission?: DemandePermission;
   userId: number;
   user?: User;
   archive: boolean;

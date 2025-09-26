@@ -21,15 +21,28 @@ export default class PermissionService {
     }
   }
 
-  public async getPermissions(): Promise<Permission[]> {
+      public async getPermissions(page = 1, limit = 10, filters?: { nom?: string; slug?: string }): Promise<{ data: Permission[], total: number }> {
+          const skip = (page - 1) * limit;
 
-    try {
-      return await prismaClient.permission.findMany({ where: { archive: false } });
-    } catch (error) {
-      throw new Error(`Erreur lors de la récupération des permissions : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
-    }
+          // Construire le where dynamiquement
+          const where: any = { archive: false };
+          if (filters) {
+            if (filters.nom) where.nom = { contains: filters.nom, mode: 'insensitive' };
+            if (filters.slug) where.slug = { contains: filters.slug, mode: 'insensitive' };
+          }
 
-  }
+          const [data, total] = await Promise.all([
+            prismaClient.permission.findMany({
+              skip,
+              take: limit,
+              where
+            }),
+            prismaClient.permission.count({ where })
+          ]);
+
+          return { data, total };
+      }
+
 
   public async getPermissionById(id: number): Promise<Permission | null> {
 
