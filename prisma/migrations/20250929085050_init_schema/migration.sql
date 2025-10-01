@@ -3,6 +3,20 @@ BEGIN TRY
 BEGIN TRAN;
 
 -- CreateTable
+CREATE TABLE [dbo].[Agence] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [nom_agence] NVARCHAR(1000) NOT NULL,
+    [code_agence] NVARCHAR(1000) NOT NULL,
+    [ville] NVARCHAR(1000) NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [Agence_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    [updatedAt] DATETIME2 NOT NULL,
+    [archive] BIT NOT NULL CONSTRAINT [Agence_archive_df] DEFAULT 0,
+    [archivedAt] DATETIME2,
+    CONSTRAINT [Agence_pkey] PRIMARY KEY CLUSTERED ([id]),
+    CONSTRAINT [Agence_code_agence_key] UNIQUE NONCLUSTERED ([code_agence])
+);
+
+-- CreateTable
 CREATE TABLE [dbo].[User] (
     [id] INT NOT NULL IDENTITY(1,1),
     [nom] NVARCHAR(1000) NOT NULL,
@@ -10,13 +24,18 @@ CREATE TABLE [dbo].[User] (
     [username] NVARCHAR(1000) NOT NULL,
     [email] NVARCHAR(1000) NOT NULL,
     [password] NVARCHAR(1000) NOT NULL,
+    [code_identifiant] NVARCHAR(1000) NOT NULL,
+    [agenceId] INT NOT NULL,
+    [poste] NVARCHAR(1000) NOT NULL,
+    [chefId] INT,
     [createdAt] DATETIME2 NOT NULL CONSTRAINT [User_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
     [updatedAt] DATETIME2 NOT NULL,
     [archive] BIT NOT NULL CONSTRAINT [User_archive_df] DEFAULT 0,
     [archivedAt] DATETIME2,
     CONSTRAINT [User_pkey] PRIMARY KEY CLUSTERED ([id]),
     CONSTRAINT [User_username_key] UNIQUE NONCLUSTERED ([username]),
-    CONSTRAINT [User_email_key] UNIQUE NONCLUSTERED ([email])
+    CONSTRAINT [User_email_key] UNIQUE NONCLUSTERED ([email]),
+    CONSTRAINT [User_code_identifiant_key] UNIQUE NONCLUSTERED ([code_identifiant])
 );
 
 -- CreateTable
@@ -190,6 +209,12 @@ CREATE TABLE [dbo].[Beneficiaire] (
 );
 
 -- AddForeignKey
+ALTER TABLE [dbo].[User] ADD CONSTRAINT [User_agenceId_fkey] FOREIGN KEY ([agenceId]) REFERENCES [dbo].[Agence]([id]) ON DELETE NO ACTION ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE [dbo].[User] ADD CONSTRAINT [User_chefId_fkey] FOREIGN KEY ([chefId]) REFERENCES [dbo].[User]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- AddForeignKey
 ALTER TABLE [dbo].[UserRole] ADD CONSTRAINT [UserRole_roleId_fkey] FOREIGN KEY ([roleId]) REFERENCES [dbo].[Role]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -202,22 +227,22 @@ ALTER TABLE [dbo].[RolePermission] ADD CONSTRAINT [RolePermission_permissionId_f
 ALTER TABLE [dbo].[RolePermission] ADD CONSTRAINT [RolePermission_roleId_fkey] FOREIGN KEY ([roleId]) REFERENCES [dbo].[Role]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE [dbo].[Decision] ADD CONSTRAINT [Decision_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE [dbo].[Decision] ADD CONSTRAINT [Decision_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE [dbo].[Decision] ADD CONSTRAINT [Decision_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE [dbo].[Demande] ADD CONSTRAINT [Demande_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE [dbo].[Demande] ADD CONSTRAINT [Demande_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE [dbo].[Conge] ADD CONSTRAINT [Conge_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE [dbo].[Conge] ADD CONSTRAINT [Conge_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE [dbo].[Absence] ADD CONSTRAINT [Absence_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE [dbo].[Absence] ADD CONSTRAINT [Absence_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE [dbo].[DemandePermission] ADD CONSTRAINT [DemandePermission_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE [dbo].[DemandePermission] ADD CONSTRAINT [DemandePermission_demandeId_fkey] FOREIGN KEY ([demandeId]) REFERENCES [dbo].[Demande]([id]) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE [dbo].[Evenement] ADD CONSTRAINT [Evenement_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE CASCADE ON UPDATE CASCADE;

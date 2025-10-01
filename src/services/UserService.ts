@@ -2,6 +2,7 @@ import prismaClient from "../utils/prismaClient";
 import { User } from "../types/index";
 import bcrypt from "bcryptjs";
 import { createUserSchema, updateUserSchema } from "../validations/userSchema";
+import { generateCodeIdentifiant } from "../utils/generateCodeIdentifiant";
 
 export interface UpdateUserData {
   nom?: string;
@@ -52,10 +53,24 @@ export default class UserService {
   }
 
   public async createUser(data: any): Promise<User> {
-    const validated = createUserSchema.parse(data);
-    validated.password = await bcrypt.hash(validated.password, 10);
-    return prismaClient.user.create({ data: validated });
-  }
+  const validated = createUserSchema.parse({
+    ...data,
+    code_identifiant: generateCodeIdentifiant(), // on injecte ici
+  });
+
+  // Hash du mot de passe
+  validated.password = await bcrypt.hash(validated.password, 10);
+
+  // Si chefId non fourni → null
+  if (validated.chefId === undefined) validated.chefId = null;
+
+  return prismaClient.user.create({
+    data: validated, // TypeScript voit maintenant code_identifiant
+  });
+}
+
+
+
 
   public async updateUser(userId: number, data: UpdateUserData): Promise<User> {
     if (!Number.isInteger(userId) || userId <= 0) throw new Error("ID utilisateur invalide");

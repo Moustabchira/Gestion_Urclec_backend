@@ -1,3 +1,15 @@
+export interface Agence {
+  id: number;
+  nom_agence: string;
+  code_agence: string;
+  ville: string;
+  users?: User[];        // liste des utilisateurs rattachés à l'agence
+  createdAt: Date;
+  updatedAt: Date;
+  archive: boolean;
+  archivedAt?: Date | null;
+}
+
 export interface User {
   id: number;
   nom: string;
@@ -5,6 +17,10 @@ export interface User {
   username: string;
   email: string;
   password: string;
+  poste: string;
+  code_identifiant: string;
+  agenceId: number;
+  chefId?: number | null;
   createdAt: Date;
   updatedAt: Date;
   actions?: Action[];

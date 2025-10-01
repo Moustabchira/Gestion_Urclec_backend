@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import RoleService from "./RoleService";
 import PermissionService from "./PermissionService";
 import { User, AuthPayload } from "../types/index";
+import { generateCodeIdentifiant } from "../utils/generateCodeIdentifiant";
 
 const SECRET_KEY = process.env.JWT_SECRET || "default_jwt_secret";
 
@@ -13,6 +14,9 @@ interface RegisterData {
   username: string;
   email: string;
   password: string;
+  poste: string;      // obligatoire
+  agenceId: number;   // obligatoire
+  chefId?: number;
   role?: { name: string; permissions?: string[] };
 }
 
@@ -25,72 +29,81 @@ export default class AuthService {
 
   public async register(userData: RegisterData): Promise<User> {
     try {
-      const { nom, prenom, username, email, password, role } = userData;
+      const { nom, prenom, username, email, password, poste, agenceId, chefId, role } = userData;
 
-      const existingUser = await prismaClient.user.findFirst({ where: { OR: [{ email }, { username }] } });
+      // Vérifie si l'utilisateur existe déjà
+      const existingUser = await prismaClient.user.findFirst({ 
+        where: { OR: [{ email }, { username }] } 
+      });
       if (existingUser) throw new Error("Email ou nom d’utilisateur déjà utilisé");
 
+      // Hash du mot de passe
       const hashedPassword = await bcrypt.hash(password, 10);
 
+      // Génération du code identifiant
+      const codeIdentifiant = generateCodeIdentifiant();
+
+      // Création de l'utilisateur
       const newUser = await prismaClient.user.create({
-        data: { nom, prenom, username, email, password: hashedPassword },
+        data: { 
+          nom, 
+          prenom, 
+          username, 
+          email, 
+          password: hashedPassword,
+          code_identifiant: codeIdentifiant,
+          poste,        
+          agenceId,     
+          chefId,      
+        },
       });
 
+      // Gestion des rôles
       if (role?.name) {
         const roleService = new RoleService();
         const permissionService = new PermissionService();
 
         let existingRole = await roleService.getRoleBySlug(role.name);
         if (!existingRole) {
-          const permissionIds = role.permissions ? await permissionService.getPermissionIdsBySlugs(role.permissions) : [];
+          const permissionIds = role.permissions 
+            ? await permissionService.getPermissionIdsBySlugs(role.permissions) 
+            : [];
           existingRole = await roleService.createRole({ nom: role.name, permissionIds });
         }
 
-        await prismaClient.userRole.create({ data: { userId: newUser.id, roleId: existingRole.id } });
+        await prismaClient.userRole.create({ 
+          data: { userId: newUser.id, roleId: existingRole.id } 
+        });
       }
 
       return newUser;
-      
+
     } catch (error) {
       throw new Error(`Erreur lors de l'inscription : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
     }
   }
 
   public async login(email: string, password: string): Promise<LoginResult> {
+    try {
+      const user = await prismaClient.user.findUnique({
+        where: { email },
+        include: { roles: { include: { role: true } } },
+      });
 
-      try {
+      if (!user) throw new Error("Utilisateur non trouvé");
 
-        const user = await prismaClient.user.findUnique({
-          where: { email },
-          include: { roles: { include: { role: true } } },
-        });
-        
-        if (!user) throw new Error("Utilisateur non trouvé");
+      const isValid = await bcrypt.compare(password, user.password);
+      if (!isValid) throw new Error("Mot de passe incorrect");
 
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) throw new Error("Mot de passe incorrect");
+      const userRoles = user.roles.map(ur => ur.role.slug);
 
-        const userRoles = user.roles.map(ur => ur.role.slug);
+      const token = jwt.sign({ userId: user.id, roles: userRoles }, SECRET_KEY, { expiresIn: "1h" });
 
-        const token = jwt.sign({ 
-          userId: user.id, 
-          roles: userRoles }, 
-          SECRET_KEY,
-          { expiresIn: "1h" }
-        );
+      const userPayload: AuthPayload = { userId: user.id, email: user.email, username: user.username, roles: userRoles };
 
-
-        const userPayload: AuthPayload = { userId: user.id, email: user.email, username: user.username, roles: userRoles };
-
-        return { 
-          token, 
-          userPayload: userPayload, 
-        };
-      } catch (error) {
-        throw new Error(`Erreur lors de la connexion : ${
-          error instanceof Error ? error.message : "Erreur inconnue"
-          }`
-        );
-      }
+      return { token, userPayload };
+    } catch (error) {
+      throw new Error(`Erreur lors de la connexion : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
+    }
   }
 }

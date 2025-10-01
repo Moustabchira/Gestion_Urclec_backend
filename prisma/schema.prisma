@@ -7,35 +7,57 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Agence {
+  id           Int      @id @default(autoincrement())
+  nom_agence   String
+  code_agence  String   @unique
+  ville        String
+  users        User[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  archive      Boolean  @default(false)
+  archivedAt   DateTime?
+}
+
 model User {
-  id          Int          @id @default(autoincrement())
-  nom         String
-  prenom      String
-  username    String       @unique
-  email       String       @unique
-  password    String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  actions     Action[]
-  decisions   Decision[]
-  equipements Equipement[]
-  evenements  Evenement[]
-  roles       UserRole[]
-  demandes    Demande[]
-  archive     Boolean      @default(false)
-  archivedAt  DateTime?
+  id                Int       @id @default(autoincrement())
+  nom               String
+  prenom            String
+  username          String    @unique
+  email             String    @unique
+  password          String
+  code_identifiant  String    @unique
+  agenceId          Int
+  agence            Agence    @relation(fields: [agenceId], references: [id])
+  poste             String
+
+  // Self-relation hiérarchie
+  chefId            Int?
+  chef              User?     @relation("ChefSubordonne", fields: [chefId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordonnes       User[]    @relation("ChefSubordonne")
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  actions           Action[]
+  decisions         Decision[]
+  equipements       Equipement[]
+  evenements        Evenement[]
+  roles             UserRole[]
+  demandes          Demande[]
+  archive           Boolean   @default(false)
+  archivedAt        DateTime?
 }
 
 model Role {
-  id          Int              @id @default(autoincrement())
-  nom         String           @unique
-  slug        String           @unique
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id              Int              @id @default(autoincrement())
+  nom             String           @unique
+  slug            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   rolePermissions RolePermission[]
-  userRoles   UserRole[]
-  archive     Boolean          @default(false)
-  archivedAt  DateTime?
+  userRoles       UserRole[]
+  archive         Boolean          @default(false)
+  archivedAt      DateTime?
 }
 
 model UserRole {
@@ -51,14 +73,14 @@ model UserRole {
 }
 
 model Permission {
-  id        Int              @id @default(autoincrement())
-  nom       String           @unique
-  slug      String           @unique
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  rolePermissions     RolePermission[]
-  archive   Boolean          @default(false)
-  archivedAt DateTime?
+  id              Int              @id @default(autoincrement())
+  nom             String           @unique
+  slug            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+  archive         Boolean          @default(false)
+  archivedAt      DateTime?
 }
 
 model RolePermission {
@@ -82,12 +104,11 @@ model Decision {
   updatedAt DateTime @updatedAt
   userId    Int
   demandeId Int
-  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   archive   Boolean  @default(false)
   archivedAt DateTime?
 }
-
 
 model Demande {
   id                Int                 @id @default(autoincrement())
@@ -103,10 +124,9 @@ model Demande {
   decisions         Decision[]
   demandePermission DemandePermission?
   userId            Int
-  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User                @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   archive           Boolean             @default(false)
   archivedAt        DateTime?
-
 }
 
 model Conge {
@@ -115,7 +135,7 @@ model Conge {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   demandeId Int      @unique
-  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   archive   Boolean  @default(false)
   archivedAt DateTime?
 }
@@ -126,7 +146,7 @@ model Absence {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   demandeId     Int      @unique
-  demande       Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  demande       Demande  @relation(fields: [demandeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   archive       Boolean  @default(false)
   archivedAt    DateTime?
 }
@@ -137,7 +157,7 @@ model DemandePermission {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   demandeId Int      @unique
-  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  demande   Demande  @relation(fields: [demandeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   archive   Boolean  @default(false)
   archivedAt DateTime?
 }

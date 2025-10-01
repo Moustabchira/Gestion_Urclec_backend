@@ -9,6 +9,7 @@ import CongeController from "../controllers/CongeController";
 import PermissionsController from "../controllers/PermissionsController";
 import AbsenceController from "../controllers/AbsenceController";
 import EvenementController from "../controllers/EvenementController";
+import AgenceController from "../controllers/AgenceController";
 
 
 const authController = new AuthController();
@@ -20,6 +21,7 @@ const congeController = new CongeController();
 const permissionsController = new PermissionsController();
 const absenceController = new AbsenceController();
 const evenementController = new EvenementController();
+const agenceController = new AgenceController();
 
 
 
@@ -88,5 +90,11 @@ export default (app: Express) : void => {
     app.delete('/evenements/:id', evenementController.deleteEvenement.bind(evenementController));
 
 
+    //agences
+    app.get('/agences', agenceController.getAllAgences.bind(agenceController));
+    app.get('/agences/:id', agenceController.getAgenceById.bind(agenceController));
+    app.post('/agences', agenceController.createAgence.bind(agenceController));
+    app.put('/agences/:id', agenceController.updateAgence.bind(agenceController));
+    app.delete('/agences/:id', agenceController.deleteAgence.bind(agenceController));
 
 }
