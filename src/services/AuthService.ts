@@ -1,8 +1,7 @@
 import prismaClient from "../utils/prismaClient";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import RoleService from "./RoleService";
-import PermissionService from "./PermissionService";
+import { createUserSchema } from "../validations/userSchema";
 import { User, AuthPayload } from "../types/index";
 import { generateCodeIdentifiant } from "../utils/generateCodeIdentifiant";
 
@@ -21,87 +20,68 @@ interface RegisterData {
 }
 
 interface LoginResult {
-  userPayload: AuthPayload;
+  user: AuthPayload;
   token: string;
 }
 
 export default class AuthService {
 
   public async register(userData: RegisterData): Promise<User> {
-    try {
-      const { nom, prenom, username, email, password, poste, agenceId, chefId, role } = userData;
+    // 🔹 Validation des données
+    const validated = createUserSchema.parse({
+      ...userData,
+      code_identifiant: generateCodeIdentifiant(),
+    });
 
-      // Vérifie si l'utilisateur existe déjà
-      const existingUser = await prismaClient.user.findFirst({ 
-        where: { OR: [{ email }, { username }] } 
-      });
-      if (existingUser) throw new Error("Email ou nom d’utilisateur déjà utilisé");
+    validated.password = await bcrypt.hash(validated.password, 10);
+    if (validated.chefId === undefined) validated.chefId = null;
 
-      // Hash du mot de passe
-      const hashedPassword = await bcrypt.hash(password, 10);
+    // 🔹 Vérifier si email ou username existe déjà
+    const existingUser = await prismaClient.user.findFirst({
+      where: { OR: [{ email: validated.email }, { username: validated.username }] },
+    });
+    if (existingUser) throw new Error("Email ou username déjà utilisé");
 
-      // Génération du code identifiant
-      const codeIdentifiant = generateCodeIdentifiant();
+    // 🔹 Création de l'utilisateur avec rôle(s) et chef
+    const newUser = await prismaClient.user.create({
+      data: {
+        ...validated,
+        posteId: validated.posteId,
+        roles: validated.roles?.length
+          ? { create: validated.roles.map(roleId => ({ roleId })) }
+          : undefined,
+      },
+      include: {
+        roles: { include: { role: true } },
+        poste: true,
+        agence: true,
+        chef: true,
+      },
+    });
 
-      // Création de l'utilisateur
-      const newUser = await prismaClient.user.create({
-        data: { 
-          nom, 
-          prenom, 
-          username, 
-          email, 
-          password: hashedPassword,
-          code_identifiant: codeIdentifiant,
-          poste,        
-          agenceId,     
-          chefId,      
-        },
-      });
-
-      // Gestion des rôles
-      if (role?.name) {
-        const roleService = new RoleService();
-        const permissionService = new PermissionService();
-
-        let existingRole = await roleService.getRoleBySlug(role.name);
-        if (!existingRole) {
-          const permissionIds = role.permissions 
-            ? await permissionService.getPermissionIdsBySlugs(role.permissions) 
-            : [];
-          existingRole = await roleService.createRole({ nom: role.name, permissionIds });
-        }
-
-        await prismaClient.userRole.create({ 
-          data: { userId: newUser.id, roleId: existingRole.id } 
-        });
-      }
-
-      return newUser;
-
-    } catch (error) {
-      throw new Error(`Erreur lors de l'inscription : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
-    }
+    return newUser;
   }
+
 
   public async login(email: string, password: string): Promise<LoginResult> {
     try {
-      const user = await prismaClient.user.findUnique({
+      const user_exist = await prismaClient.user.findUnique({
         where: { email },
         include: { roles: { include: { role: true } } },
       });
 
-      if (!user) throw new Error("Utilisateur non trouvé");
+      if (!user_exist) throw new Error("Utilisateur non trouvé");
 
-      const isValid = await bcrypt.compare(password, user.password);
+      const isValid = await bcrypt.compare(password, user_exist.password);
       if (!isValid) throw new Error("Mot de passe incorrect");
 
-      const userRoles = user.roles.map(ur => ur.role.slug);
+      const userRoles = user_exist.roles.map(ur => ur.role.slug);
 
-      const token = jwt.sign({ userId: user.id, roles: userRoles }, SECRET_KEY, { expiresIn: "1h" });
+      const token = jwt.sign({ userId: user_exist.id, roles: userRoles }, SECRET_KEY, { expiresIn: "1h" });
 
-      const userPayload: AuthPayload = { userId: user.id, email: user.email, username: user.username, roles: userRoles };
+      const user: AuthPayload = { userId: user_exist.id, email: user_exist.email, username: user_exist.username, roles: userRoles };
 
-      return { token, userPayload };
+      return { token, user };
     } catch (error) {
       throw new Error(`Erreur lors de la connexion : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
     }

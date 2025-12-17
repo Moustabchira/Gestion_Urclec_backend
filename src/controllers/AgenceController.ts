@@ -7,11 +7,14 @@ const agenceService = new AgenceService();
 export default class AgenceController {
 
   private parseId(value: string): number | null {
+
     const id = Number(value);
     return Number.isInteger(id) && id > 0 ? id : null;
+
   }
 
   public async getAllAgences(req: Request, res: Response) {
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
 
@@ -37,6 +40,7 @@ export default class AgenceController {
   }
 
   public async getAgenceById(req: Request, res: Response) {
+
     const id = this.parseId(req.params.id);
     if (!id) return res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: "ID Agence invalide" });
 
@@ -47,18 +51,22 @@ export default class AgenceController {
     } catch (error) {
       res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
     }
+
   }
 
   public async createAgence(req: Request, res: Response) {
+
     try {
       const agence = await agenceService.createAgence(req.body);
       res.status(status.HTTP_STATUS_CREATED).json(agence);
     } catch (error) {
       res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
     }
+
   }
 
   public async updateAgence(req: Request, res: Response) {
+
     const id = this.parseId(req.params.id);
     if (!id) return res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: "ID Agence invalide" });
 
@@ -68,9 +76,11 @@ export default class AgenceController {
     } catch (error) {
       res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
     }
+
   }
 
   public async deleteAgence(req: Request, res: Response) {
+
     const id = this.parseId(req.params.id);
     if (!id) return res.status(status.HTTP_STATUS_BAD_REQUEST).json({ message: "ID Agence invalide" });
 
@@ -80,5 +90,6 @@ export default class AgenceController {
     } catch (error) {
       res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
     }
+    
   }
 }

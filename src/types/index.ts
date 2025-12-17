@@ -1,15 +1,46 @@
+// ---------- Agence ----------
 export interface Agence {
   id: number;
   nom_agence: string;
   code_agence: string;
   ville: string;
-  users?: User[];        // liste des utilisateurs rattachés à l'agence
+  users?: User[];
   createdAt: Date;
   updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
 }
 
+// ---------- Poste ----------
+export interface Poste {
+  id: number;
+  nom: string;
+  users?: User[];
+  createdAt: Date;
+  updatedAt: Date;
+  archive: boolean;
+  archivedAt?: Date | null;
+}
+
+export interface PointDeService {
+  id: number;
+  nom: string;
+
+  // Relation vers Agence
+  agenceId: number;
+  agence?: Agence;
+
+  affectationsOrigine?: AffectationEquipement[];
+  affectationsDest?: AffectationEquipement[];
+  
+  // Métadonnées communes
+  createdAt: Date;
+  updatedAt: Date;
+  archive: boolean;
+  archivedAt?: Date | null;
+}
+
+// ---------- User ----------
 export interface User {
   id: number;
   nom: string;
@@ -17,30 +48,44 @@ export interface User {
   username: string;
   email: string;
   password: string;
-  poste: string;
   code_identifiant: string;
+
   agenceId: number;
+  agence?: Agence;
+
+  posteId: number;
+  poste?: Poste;
+
   chefId?: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-  actions?: Action[];
+  chef?: User | null;
+  subordonnes?: User[];
+
+  actionCredits?: ActionCredit[];
+  creditsBeneficiaire?: Credit[];
   decisions?: Decision[];
-  equipements?: Equipement[];
-  evenements?: Evenement[];
   roles?: UserRole[];
   demandes?: Demande[];
+  evenementsCrees?: Evenement[];
+  evenementsValides?: Evenement[];
+  eventementsPublies?: Evenement[];
+  equipementsPossedes?: Equipement[];
+  affectations?: AffectationEquipement[];
+
+  createdAt: Date;
+  updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
 }
 
+// ---------- Rôles et Permissions ----------
 export interface Role {
   id: number;
   nom: string;
   slug: string;
+  rolePermissions?: RolePermission[];
+  userRoles?: UserRole[];
   createdAt: Date;
   updatedAt: Date;
-  permissions?: RolePermission[];
-  userRoles?: UserRole[];
   archive: boolean;
   archivedAt?: Date | null;
 }
@@ -59,9 +104,9 @@ export interface Permission {
   id: number;
   nom: string;
   slug: string;
+  rolePermissions?: RolePermission[];
   createdAt: Date;
   updatedAt: Date;
-  roles?: RolePermission[];
   archive: boolean;
   archivedAt?: Date | null;
 }
@@ -70,42 +115,30 @@ export interface RolePermission {
   id: number;
   roleId: number;
   permissionId: number;
-  createdAt: Date;
-  permission?: Permission;
   role?: Role;
-  archive: boolean;
-  archivedAt?: Date | null;
-}
-
-export interface Decision {
-  id: number;
-  status: string;
-  niveau: string;
+  permission?: Permission;
   createdAt: Date;
-  updatedAt: Date;
-  userId: number;
-  demandeId: number;
-  demande?: Demande;
-  user?: User;
   archive: boolean;
   archivedAt?: Date | null;
 }
 
+// ---------- Demandes ----------
 export interface Demande {
   id: number;
   type: string;
   dateDebut: Date;
   dateFin: Date;
   motif: string;
-  status: string; // "EN_ATTENTE" | "APPROUVEE" | "REFUSEE"
-  createdAt: Date;
-  updatedAt: Date;
-  conge: Conge | null;
-  absence: Absence | null;
-  demandePermission: DemandePermission | null;
-  decisions?: Decision[];
+  status: string;
+  pdfPath?: string | null;
   userId: number;
   user?: User;
+  conge?: Conge | null;
+  absence?: Absence | null;
+  demandePermission?: DemandePermission | null;
+  decisions?: Decision[];
+  createdAt: Date;
+  updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
 }
@@ -113,10 +146,10 @@ export interface Demande {
 export interface Conge {
   id: number;
   nbJours: number;
-  createdAt: Date;
-  updatedAt: Date;
   demandeId: number;
   demande?: Demande;
+  createdAt: Date;
+  updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
 }
@@ -124,10 +157,10 @@ export interface Conge {
 export interface Absence {
   id: number;
   justification: string;
-  createdAt: Date;
-  updatedAt: Date;
   demandeId: number;
   demande?: Demande;
+  createdAt: Date;
+  updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
 }
@@ -135,60 +168,139 @@ export interface Absence {
 export interface DemandePermission {
   id: number;
   duree: string;
-  createdAt: Date;
-  updatedAt: Date;
   demandeId: number;
   demande?: Demande;
+  createdAt: Date;
+  updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
 }
 
+// ---------- Décision ----------
+export interface Decision {
+  id: number;
+  status: string;
+  niveau: string;
+  userId: number;
+  user?: User;
+  demandeId: number;
+  demande?: Demande;
+  createdAt: Date;
+  updatedAt: Date;
+  archive: boolean;
+  archivedAt?: Date | null;
+}
+
+// ---------- Equipements ----------
+export interface Equipement {
+  id: number;
+  nom: string;
+  modele?: string | null;
+  categorie?: string | null;
+  quantiteTotale: number;
+  quantiteDisponible: number;
+  images?: string | null; // JSON stringifié pour SQL Server
+  dateAcquisition: Date;
+  status: string; // ACTIF, HORS_SERVICE
+  proprietaireId?: number | null;
+  proprietaire?: User | null;
+  affectations?: AffectationEquipement[];
+  createdAt: Date;
+  updatedAt: Date;
+  archive: boolean;
+  archivedAt?: Date | null;
+}
+
+export interface AffectationEquipement {
+  id: number;
+  equipementId: number;
+  employeId: number;
+  pointServiceOrigineId?: number | null;
+  pointServiceDestId?: number | null;
+  quantite: number;
+  status?: "BON" | "ABIME" | "PERDU" | "RETIRE";
+  dateAffectation: Date;
+  dateFin?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  equipement?: Equipement;
+  employe?: User;
+  pointServiceOrigine?: PointDeService;
+  pointServiceDest?: PointDeService;
+  archive: boolean;
+  archivedAt?: Date | null;
+}
+
+// ---------- Evenement ----------
 export interface Evenement {
   id: number;
   titre: string;
   description: string;
-  createdAt: Date;
-  updatedAt: Date;
+  dateDebut: Date;
+  dateFin: Date;
+  images?: string | null; // JSON stringifié pour SQL Server
+  statut: string; // EN_ATTENTE, VALIDE, REJETE, PUBLIE
   userId: number;
   user?: User;
+  validatedBy?: number | null;
+  validateur?: User | null;
+  publishedBy?: number | null;
+  publieur?: User | null;
+  createdAt: Date;
+  updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
 }
 
-export interface Equipement {
-  id: number;
-  nom: string;
-  modele: string;
-  status: string;
-  createdAt: Date;
-  updatedAt: Date;
-  userId: number;
-  user?: User;
-  archive: boolean;
-  archivedAt?: Date | null;
-}
-
-export interface Action {
+// ---------- ActionCredit ----------
+export interface ActionCredit {
   id: number;
   type: string;
-  description: string;
+  commentaire: string;
+  date: Date;
+  creditId: number;
+  credit?: Credit;
+  agentId: number;
+  agent?: User;
+  latitude?: number | null;
+  longitude?: number | null;
   createdAt: Date;
   updatedAt: Date;
-  userId: number;
-  user?: User;
   archive: boolean;
   archivedAt?: Date | null;
 }
 
-export interface Beneficiaire {
+// ---------- Credit ----------
+export interface Credit {
   id: number;
-  localisation: string;
+  beneficiaireId: number;
+  beneficiaire?: User;
+  montant: number;
+  tauxInteret?: number | null;
+  dateDebut: Date;
+  dateFin: Date;
+  status?: string | null;
+  actions?: ActionCredit[];
+  histories?: CreditHistory[];
   createdAt: Date;
   updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
 }
 
+// ---------- CreditHistory ----------
+export interface CreditHistory {
+  id: number;
+  creditId: number;
+  credit?: Credit;
+  field: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  changedAt: Date;
+}
+
+
+// ---------- AuthPayload ----------
 export interface AuthPayload {
   userId: number;
   username: string;

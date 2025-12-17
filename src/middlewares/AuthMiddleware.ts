@@ -1,77 +1,38 @@
 import { Request, Response, NextFunction } from 'express';
-import * as status from '../utils/constantes';
 import prismaClient from '../utils/prismaClient';
 import jwt from 'jsonwebtoken';
+import * as status from '../utils/constantes';
 
 const SECRET_KEY = process.env.JWT_SECRET || 'default_jwt_secret';
 
+export const authMiddleware = async (req: any, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
 
-// Middleware pour vérifier le token JWT
-export const authMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!token) return res.status(status.HTTP_STATUS_UNAUTHORIZED).json({ message: 'Accès non autorisé' });
 
-    try {
+    const decoded = jwt.verify(token, SECRET_KEY) as { userId: number, roles: string[] };
+    const user = await prismaClient.user.findUnique({
+      where: { id: decoded.userId },
+      include: { roles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } } }
+    });
 
-        const authHeader = req.headers.authorization;
-        let token: string | undefined;
+    if (!user) return res.status(status.HTTP_STATUS_UNAUTHORIZED).json({ message: 'Utilisateur non trouvé' });
 
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            token = authHeader?.substring(7);
-        } 
+    const permissions: string[] = user.roles.flatMap(ur => ur.role.rolePermissions.map(rp => rp.permission.slug));
 
-        if (!token) {
-            res.status(status.HTTP_STATUS_UNAUTHORIZED).json({ message: 'Accès non autorisé' });
-            return;
-        }
+    req.user = {
+      id: user.id,
+      email: user.email,
+      agenceId: user.agenceId,
+      roles: user.roles.map(r => r.role.slug),
+      permissions,
+    };
 
-        const decoded = jwt.verify(token, SECRET_KEY) as { userId: number, roles: string[] };
-        const { userId } = decoded;
-
-
-        if (!userId) {
-            res.status(status.HTTP_STATUS_FORBIDDEN).json({ message: 'Token invalide ou expiré' });
-            return;
-        }
-
-        const user = await prismaClient.user.findUnique({
-            where: { id: userId },
-            include: {
-                roles: {
-                    include: {
-                        role: {
-                            include: {
-                                rolePermissions: {
-                                    include: {
-                                        permission: true
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        if (!user) {
-            res.status(status.HTTP_STATUS_UNAUTHORIZED).json({ message: 'Utilisateur non trouvé' });
-            return;
-        }
-
-        const permissions: string[] = user.roles.flatMap(ur => 
-            ur.role.rolePermissions.map(rp => rp.permission.slug)
-        );
-
-        req.user = { 
-            id: user.id, 
-            email: user.email, 
-            permissions 
-        };
-        next();
-
-    } catch (error) {
-        console.error('Erreur dans le middleware d\'authentification :', error);
-        res.status(status.HTTP_STATUS_FORBIDDEN).json({ message: 'Token invalide ou expiré' });
-        return;
-
-    }
-
-}
+    next();
+  } catch (error) {
+    console.error(error);
+    res.status(status.HTTP_STATUS_FORBIDDEN).json({ message: 'Token invalide ou expiré' });
+  }
+};

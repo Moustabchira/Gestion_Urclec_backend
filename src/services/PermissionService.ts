@@ -4,24 +4,7 @@ import { Permission } from "../types/index";
 
 export default class PermissionService {
 
-  public async createPermission(nom: string): Promise<Permission> {
-    try {
-
-      const slug = slugify(nom);
-
-      return await prismaClient.permission.create({
-        data: { 
-            nom, 
-            slug 
-        },
-      });
-      
-    } catch (error) {
-      throw new Error(`Erreur lors de la création de la permission : ${error instanceof Error ? error.message : "Erreur inconnue"}`);
-    }
-  }
-
-      public async getPermissions(page = 1, limit = 10, filters?: { nom?: string; slug?: string }): Promise<{ data: Permission[], total: number }> {
+      public async getPermissions(page = 1, limit = 56, filters?: { nom?: string; slug?: string }): Promise<{ data: Permission[], total: number }> {
           const skip = (page - 1) * limit;
 
           // Construire le where dynamiquement

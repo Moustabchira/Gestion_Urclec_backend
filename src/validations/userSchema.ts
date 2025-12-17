@@ -1,15 +1,16 @@
 import { z } from "zod";
 
 export const createUserSchema = z.object({
-  nom: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
-  prenom: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
-  username: z.string().min(3, "Le username doit contenir au moins 3 caractères"),
-  email: z.string().email("Email invalide"),
-  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
-  poste: z.string().min(2, "Le poste doit contenir au moins 2 caractères"),
-  agenceId: z.number(),
-  chefId: z.number().nullable().optional(),
+  nom: z.string().min(2),
+  prenom: z.string().min(2),
+  username: z.string().min(3),
+  email: z.string().email(),
+  password: z.string().min(8),
+  posteId: z.number().int().positive(),
+  agenceId: z.number().int().positive(),
+  chefId: z.number().int().nullable().optional(),
   code_identifiant: z.string(),
+  roles: z.array(z.number()).optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -18,7 +19,8 @@ export const updateUserSchema = z.object({
   username: z.string().min(3).optional(),
   email: z.string().email().optional(),
   password: z.string().min(8).optional(),
-  poste: z.string().min(2).optional(),
-  agenceId: z.number().optional(),
-  chefId: z.number().nullable().optional(),
+  posteId: z.number().int().positive().optional(),
+  agenceId: z.number().int().positive().optional(),
+  chefId: z.number().int().nullable().optional(),
+  roles: z.array(z.number()).optional(),
 });

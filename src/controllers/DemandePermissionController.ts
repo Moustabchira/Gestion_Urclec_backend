@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import PermissionsService from "../services/PermissionsService";
+import PermissionsService from "../services/DemandePermissionService";
 import * as status from "../utils/constantes";
 
 const permissionsService = new PermissionsService();

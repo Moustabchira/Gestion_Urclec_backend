@@ -5,7 +5,10 @@ declare module "express-serve-static-core" {
     user?: {
       id: number;
       email: string;
+      agenceId: number;
+      roles: string[];
       permissions: string[];
     };
+    filter?: any;
   }
 }

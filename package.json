@@ -13,9 +13,12 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.0.0",
     "@types/node": "^24.3.1",
+    "@types/pdfmake": "^0.2.12",
     "prisma": "^6.15.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.5",
@@ -27,12 +30,16 @@
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
+    "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mssql": "^11.0.1",
+    "multer": "^2.0.2",
     "nanoid": "^5.1.6",
     "nodemon": "^3.1.10",
+    "pdfkit": "^0.17.2",
+    "pdfmake": "^0.2.20",
     "zod": "^4.1.9"
   }
 }

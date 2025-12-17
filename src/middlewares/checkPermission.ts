@@ -1,19 +1,26 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 
-export const checkPermission = (requiredPermission: string) => {
-
-  return (req: Request, res: Response, next: NextFunction): void => {
-    
-    if (!req.user || !req.user.permissions) {
-      res.status(403).json({ message: "Permissions non trouvées." });
-      return;
+export const checkPermission = (slug: string) => {
+  return (req: any, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Utilisateur non authentifié." });
     }
 
-    const hasPermission = req.user.permissions.includes(requiredPermission);
+    const user = req.user;
 
-    if (!hasPermission) {
-      res.status(403).json({ message: "Permission refusée." });
-      return;
+    // ✅ Si l'utilisateur est ADMIN, DG ou DRH → accès complet sans vérifier la permission
+    if (user.roles?.includes("ADMIN") || user.roles?.includes("DG") || user.roles?.includes("DRH")) {
+      return next();
+    }
+
+    // 🚫 Si pas de permissions définies sur l'utilisateur
+    if (!user.permissions || !Array.isArray(user.permissions)) {
+      return res.status(403).json({ message: "Aucune permission associée à cet utilisateur." });
+    }
+
+    // 🔍 Vérification de la permission demandée
+    if (!user.permissions.includes(slug)) {
+      return res.status(403).json({ message: "Permission refusée." });
     }
 
     next();

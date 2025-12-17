@@ -1,27 +1,40 @@
 import { Request, Response } from "express";
 import AuthService from "../services/AuthService";
 import * as status from "../utils/constantes"
+import jwt from "jsonwebtoken";
 
 const authService = new AuthService();
+const SECRET_KEY = process.env.JWT_SECRET || "default_jwt_secret";
+
 
 export default class AuthController {
 
   // Inscription d'un utilisateur avec rôle(s) et permissions
+ 
   public async register(req: Request, res: Response): Promise<void> {
     try {
       const user = await authService.register(req.body);
-
-      // Supprimer le mot de passe avant renvoi
       const { password, ...userWithoutPassword } = user;
 
-      res.status(status.HTTP_STATUS_CREATED).json({ 
-        message: "Utilisateur créé avec succès", 
-        user: userWithoutPassword 
+      const userRoles = userWithoutPassword.roles?.map(r => r.role?.slug).filter(Boolean) || [];
+      const token = jwt.sign(
+        { userId: userWithoutPassword.id, roles: userRoles },
+        SECRET_KEY,
+        { expiresIn: "1h" }
+      );
+
+      res.status(201).json({
+        message: "Utilisateur créé avec succès",
+        user: userWithoutPassword,
+        token,
       });
     } catch (error: any) {
-      res.status(status.HTTP_STATUS_BAD_REQUEST).json({ error: error.message });
+      res.status(400).json({ error: error.message });
     }
   }
+
+
+
 
   // Connexion et récupération du token JWT
   public async login(req: Request, res: Response): Promise<void> {
@@ -33,11 +46,11 @@ export default class AuthController {
         return;
       }
 
-      const { token, userPayload } = await authService.login(email, password);
+      const { token, user } = await authService.login(email, password);
 
       res.status(status.HTTP_STATUS_OK).json({ 
         message: "Connexion réussie", 
-        user: userPayload, 
+        user,
         token: token 
       });
     } catch (error: any) {
