@@ -1,177 +1,192 @@
 import { Request, Response } from "express";
 import EquipementService from "../services/EquipementService";
-import { Equipement } from "../types/index";
 
-const service = new EquipementService();
+const equipementService = new EquipementService();
 
 export default class EquipementController {
-  
-  // 🔹 Récupérer tous les équipements
-  async getAll(req: Request, res: Response) {
-    try {
-      const filters = req.query as any; 
-      const equipements: Equipement[] = await service.getAllEquipements(filters);
-      res.json(equipements);
-    } catch (error: any) {
-      console.error("Erreur getAllEquipements:", error);
-      res.status(400).json({ message: error.message });
-    }
-  }
 
-  // 🔹 Récupérer un équipement par ID
-  async getById(req: Request, res: Response) {
-    try {
-      const id = parseInt(req.params.id);
-      
-      const equipement: Equipement | null = await service.getEquipementById(id);
-
-      if (!equipement)
-        return res.status(404).json({ message: "Équipement non trouvé" });
-
-      res.json(equipement);
-
-    } catch (error: any) {
-      console.error("Erreur getEquipementById:", error);
-      res.status(400).json({ message: error.message });
-    }
-  }
-
-  // 🔹 Créer un équipement
+  // ----------------- Création d’équipement -----------------
   async create(req: Request, res: Response) {
     try {
-      console.log("==== Création d'équipement ====");
-      console.log("Body reçu :", req.body);
+      const data: any = { ...req.body };
 
-      const data = req.body;
-      const formattedData: any = {
-        ...data,
-        quantiteTotale: data.quantiteTotale !== undefined ? Number(data.quantiteTotale) : undefined,
-        quantiteDisponible: data.quantiteDisponible !== undefined ? Number(data.quantiteDisponible) : undefined,
-        dateAcquisition: data.dateAcquisition ? new Date(data.dateAcquisition) : undefined,
-        proprietaireId: data.proprietaireId ? Number(data.proprietaireId) : undefined,
-      };
-
-      // Si des fichiers sont uploadés par multer
-      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-        formattedData.images = req.files.map((file: any) => file.filename);
-      } else if (data.images) {
-        // cas où le frontend envoie un JSON d'URLs/noms (string ou array)
-        try {
-          formattedData.images = typeof data.images === "string" ? JSON.parse(data.images) : data.images;
-        } catch {
-          formattedData.images = data.images;
-        }
+      // Gestion des fichiers uploadés
+      if (req.files && Array.isArray(req.files)) {
+        data.images = req.files.map((file: any) => file.filename);
+      } else if (data.images && typeof data.images === "string") {
+        try { data.images = JSON.parse(data.images); } catch { }
       }
 
-      // validation / conversion minimale : assure quantiteTotale si fourni
-      if (formattedData.quantiteTotale !== undefined) formattedData.quantiteTotale = Number(formattedData.quantiteTotale);
-
-      const created: Equipement = await service.createEquipement(formattedData);
-      res.status(201).json(created);
-    } catch (error: any) {
-      console.error("Erreur createEquipement:", error);
-      res.status(400).json({ message: error.message || "Erreur lors de la création de l'équipement" });
+      const equipement = await equipementService.createEquipement(data);
+      res.status(201).json(equipement);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
     }
   }
 
-  // 🔹 Mettre à jour un équipement
+  async getAll(req: Request, res: Response) {
+    try {
+      const equipements = await equipementService.getAllEquipements();
+      res.json(equipements);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  async getById(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const equipement = await equipementService.getEquipementById(id);
+      if (!equipement) return res.status(404).json({ error: "Équipement non trouvé" });
+      res.json(equipement);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
   async update(req: Request, res: Response) {
     try {
-      console.log("==== Mise à jour d'équipement ====");
-      console.log("Paramètres :", req.params);
-      console.log("Body reçu :", req.body);
-      console.log("Files reçus :", req.files);
-
       const id = Number(req.params.id);
-      if (!Number.isInteger(id) || id <= 0) {
-        return res.status(400).json({ message: "ID invalide" });
-      }
+      const data: any = { ...req.body };
+      if (req.files && Array.isArray(req.files)) data.images = req.files.map((file: any) => file.filename);
 
-      const data = req.body;
-      const formattedData: any = {
-        ...data,
-        quantiteTotale: data.quantiteTotale !== undefined ? Number(data.quantiteTotale) : undefined,
-        quantiteDisponible: data.quantiteDisponible !== undefined ? Number(data.quantiteDisponible) : undefined,
-        dateAcquisition: data.dateAcquisition ? new Date(data.dateAcquisition) : undefined,
-        proprietaireId: data.proprietaireId ? Number(data.proprietaireId) : undefined,
-      };
-
-      // Si des fichiers sont uploadés par multer -> remplacer / ajouter la liste d'images
-      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-        formattedData.images = req.files.map((file: any) => file.filename);
-        console.log("Images uploadées :", formattedData.images);
-      } else if (data.images) {
-        // si frontend a envoyé images comme JSON string ou array
-        try {
-          formattedData.images = typeof data.images === "string" ? JSON.parse(data.images) : data.images;
-        } catch {
-          formattedData.images = data.images;
-        }
-      }
-
-      const updated: Equipement = await service.updateEquipement(id, formattedData);
-      res.status(200).json(updated);
-    } catch (error: any) {
-      console.error("Erreur updateEquipement:", error);
-      res.status(400).json({ message: error.message || "Erreur lors de la mise à jour de l'équipement" });
+      const equipement = await equipementService.updateEquipement(id, data);
+      res.json(equipement);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
     }
   }
 
- // controllers/EquipementController.ts (méthode getFiltered)
-async getFiltered(req: Request, res: Response) {
+  async archive(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const equipement = await equipementService.archiveEquipement(id);
+      res.json(equipement);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ----------------- Déclaration état & status -----------------
+  async declarerEtat(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const { etat } = req.body;
+      const equipement = await equipementService.declarerEtatEquipement(id, etat);
+      res.json(equipement);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async declarerStatus(req: Request, res: Response) {
+    try {
+      const id = Number(req.params.id);
+      const { status } = req.body;
+      const equipement = await equipementService.declarerStatusEquipement(id, status);
+      res.json(equipement);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  // ----------------- Affectation -----------------
+  async affecter(req: Request, res: Response) {
+    try {
+      const data: any = req.body;
+      ["equipementId", "initiateurId", "employeId", "pointServiceDestinationId"].forEach(key => { if (data[key]) data[key] = Number(data[key]); });
+
+      const mouvement = await equipementService.affecterEquipement(data);
+      res.json(mouvement);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  // ----------------- Transfert -----------------
+  async transferer(req: Request, res: Response) {
+    try {
+      const data: any = req.body;
+      ["equipementId", "initiateurId", "agenceSourceId", "agenceDestinationId", "pointServiceSourceId", "pointServiceDestinationId", "responsableDestinationId"]
+        .forEach(key => { if (data[key]) data[key] = Number(data[key]); });
+
+      const mouvement = await equipementService.transfererEquipement(data);
+      res.json(mouvement);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+ // ================= CONTROLEUR =================
+async envoyerEnReparation(req: Request, res: Response) {
   try {
-    // parse et validation simple
-    const rawAgence = req.query.agenceId;
-    const rawPoste = req.query.posteId;
+    console.log("Request body:", req.body);
 
-    const agenceId = rawAgence !== undefined && rawAgence !== "" ? Number(rawAgence) : undefined;
-    const posteId = rawPoste !== undefined && rawPoste !== "" ? Number(rawPoste) : undefined;
+    const data = {
+      equipementId: Number(req.body.equipementId),
+      initiateurId: Number(req.body.initiateurId),
+      reparateurId: Number(req.body.reparateurId),
+      agenceSourceId: req.body.agenceSourceId
+        ? Number(req.body.agenceSourceId)
+        : undefined,
+      pointServiceSourceId: req.body.pointServiceSourceId
+        ? Number(req.body.pointServiceSourceId)
+        : undefined,
+      descriptionPanne: req.body.commentaire ?? "", // 🔑 obligatoire
+    };
 
-    if (agenceId !== undefined && (!Number.isInteger(agenceId) || agenceId <= 0)) {
-      return res.status(400).json({ message: "Paramètre agenceId invalide" });
-    }
-    if (posteId !== undefined && (!Number.isInteger(posteId) || posteId <= 0)) {
-      return res.status(400).json({ message: "Paramètre posteId invalide" });
-    }
-
-    const equipements: Equipement[] = await service.getEquipementsFiltered(agenceId, posteId);
-    return res.json(equipements);
-  } catch (error: any) {
-    // log complet pour debug (stack)
-    console.error("Erreur getEquipementsFiltered:", error);
-    return res.status(400).json({ message: error.message || "Erreur getFiltered" });
+    const mouvement = await equipementService.envoyerEnReparation(data);
+    res.status(201).json(mouvement);
+  } catch (err: any) {
+    console.error("envoyerEnReparation error:", err);
+    res.status(400).json({ error: err.message });
   }
 }
 
 
-  // 🔹 Supprimer un équipement (soft delete)
-  async delete(req: Request, res: Response) {
+
+async retourDeReparation(req: Request, res: Response) {
+  try {
+    const data = {
+      mouvementId: Number(req.body.mouvementId),
+      initiateurId: Number(req.body.initiateurId), // réparateur
+      etatFinal: req.body.etatFinal as "FONCTIONNEL" | "EN_PANNE",
+    };
+
+    if (!data.etatFinal) {
+      throw new Error("etatFinal est obligatoire (FONCTIONNEL | EN_PANNE)");
+    }
+
+    const result = await equipementService.retourDeReparation(data);
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
+
+
+  // ----------------- Confirmation de réception -----------------
+  async confirmerReception(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id);
-
-      await service.deleteEquipement(id);
-
-      res.json({ message: "Équipement archivé avec succès" });
-
-    } catch (error: any) {
-      console.error("Erreur deleteEquipement:", error);
-      res.status(400).json({ message: error.message });
+      const mouvementId = Number(req.body.mouvementId);
+      const confirmeParId = Number(req.body.confirmeParId);
+      const mouvement = await equipementService.confirmerReception(mouvementId, confirmeParId);
+      res.json(mouvement);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
     }
   }
 
-  // 🔹 Déclarer le statut d’un équipement
-  async declarerStatus(req: Request, res: Response) {
+  // ----------------- Historique des mouvements -----------------
+  async getMouvements(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id);
-      const { status } = req.body;
-
-      const updated = await service.declarerStatus(id, status);
-
-      res.json(updated);
-
-    } catch (error: any) {
-      console.error("Erreur declarerStatus:", error);
-      res.status(400).json({ message: error.message });
+      const equipementId = Number(req.params.id);
+      const filter = req.query || {};
+      const mouvements = await equipementService.getMouvementsEquipement(equipementId, filter);
+      res.json(mouvements);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   }
 }

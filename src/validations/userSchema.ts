@@ -18,6 +18,7 @@ export const updateUserSchema = z.object({
   prenom: z.string().min(2).optional(),
   username: z.string().min(3).optional(),
   email: z.string().email().optional(),
+  currentPassword: z.string().min(8).optional(),
   password: z.string().min(8).optional(),
   posteId: z.number().int().positive().optional(),
   agenceId: z.number().int().positive().optional(),

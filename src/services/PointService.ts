@@ -25,8 +25,8 @@ export default class PointService {
       where,
       include: {
         agence: true,
-        affectationsOrigine: true,
-        affectationsDest: true,
+        mouvementsSource: true,
+        mouvementsDest: true,
       },
     });
   }
@@ -39,8 +39,8 @@ export default class PointService {
       where: { id },
       include: {
         agence: true,
-        affectationsOrigine: true,
-        affectationsDest: true,
+        mouvementsSource: true,
+        mouvementsDest: true,
       },
     });
   }

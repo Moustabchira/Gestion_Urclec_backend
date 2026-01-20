@@ -8,16 +8,20 @@ datasource db {
 }
 
 model Agence {
-  id           Int              @id @default(autoincrement())
-  nom_agence   String
-  code_agence  String           @unique
-  ville        String
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  archive      Boolean          @default(false)
-  archivedAt   DateTime?
-  pointService PointDeService[]
-  users        User[]
+  id                    Int                   @id @default(autoincrement())
+  nom_agence            String
+  code_agence           String                @unique
+  ville                 String
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  archive               Boolean               @default(false)
+  archivedAt            DateTime?
+  pointService          PointDeService[]
+  users                 User[]
+  mouvementsSource      MouvementEquipement[] @relation("MouvementAgenceSource")
+  mouvementsDestination MouvementEquipement[] @relation("MouvementAgenceDest")
+  equipementsActuels    Equipement[]          @relation("EquipementAgenceActuelle")
+
 }
 
 model Poste {
@@ -31,33 +35,38 @@ model Poste {
 }
 
 model User {
-  id                Int                     @id @default(autoincrement())
-  nom               String
-  prenom            String
-  username          String                  @unique
-  email             String                  @unique
-  password          String
-  code_identifiant  String                  @unique
-  agenceId          Int
-  posteId           Int
-  chefId            Int?
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  archive           Boolean                 @default(false)
-  archivedAt        DateTime?
-  actionCredit      ActionCredit[]
-  creditBeneficiaire  Credit[]
-  affectations      AffectationEquipement[]
-  decisions         Decision[]
-  demandesAValider  Demande[]               @relation("DemandeCurrentApprover")
-  demandes          Demande[]
-  evenementsPublies Evenement[]             @relation("EvenementPublieur")
-  evenementsCrees   Evenement[]             @relation("EvenementCreateur")
-  agence            Agence                  @relation(fields: [agenceId], references: [id])
-  chef              User?                   @relation("ChefSubordonne", fields: [chefId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  subordonnes       User[]                  @relation("ChefSubordonne")
-  poste             Poste                   @relation(fields: [posteId], references: [id])
-  roles             UserRole[]
+  id                    Int                   @id @default(autoincrement())
+  nom                   String
+  prenom                String
+  username              String                @unique
+  email                 String                @unique
+  password              String
+  code_identifiant      String                @unique
+  agenceId              Int
+  posteId               Int
+  chefId                Int?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  archive               Boolean               @default(false)
+  archivedAt            DateTime?
+  mouvementsInitie      MouvementEquipement[] @relation("MouvementInitiateur")
+  mouvementsConfirmes   MouvementEquipement[] @relation("MouvementConfirmePar")
+  mouvementsResponsableSource MouvementEquipement[] @relation("MouvementResponsableSource")
+  mouvementsResponsableDest   MouvementEquipement[] @relation("MouvementResponsableDest")
+  equipementsActuels     Equipement[]        @relation("EquipementResponsableActuel")
+  notifications          Notification[]      @relation("NotificationUser")
+  actionCredit       ActionCredit[]
+  creditBeneficiaire Credit[]
+  decisions          Decision[]
+  demandesAValider   Demande[]      @relation("DemandeCurrentApprover")
+  demandes           Demande[]
+  evenementsPublies  Evenement[]    @relation("EvenementPublieur")
+  evenementsCrees    Evenement[]    @relation("EvenementCreateur")
+  agence             Agence         @relation(fields: [agenceId], references: [id])
+  chef               User?          @relation("ChefSubordonne", fields: [chefId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordonnes        User[]         @relation("ChefSubordonne")
+  poste              Poste          @relation(fields: [posteId], references: [id])
+  roles              UserRole[]
 }
 
 model Role {
@@ -195,58 +204,112 @@ model Evenement {
   user        User      @relation("EvenementCreateur", fields: [userId], references: [id], onUpdate: NoAction)
 }
 
-
 model PointDeService {
-  id           Int                     @id @default(autoincrement())
-  nom          String
-  agenceId     Int
-  affectationsOrigine AffectationEquipement[] @relation("OrigineAffectation")
-  affectationsDest    AffectationEquipement[] @relation("DestAffectation")
-  agence       Agence                  @relation(fields: [agenceId], references: [id], onUpdate: NoAction)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  archive     Boolean   @default(false)
-  archivedAt  DateTime?
+  id               Int                   @id @default(autoincrement())
+  nom              String
+  agenceId         Int
+  agence           Agence                @relation(fields: [agenceId], references: [id], onUpdate: NoAction)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  archive          Boolean               @default(false)
+  archivedAt       DateTime?
+  mouvementsSource MouvementEquipement[] @relation("MvtPSSource")
+  mouvementsDest   MouvementEquipement[] @relation("MvtPSDest")
+  equipementsActuels Equipement[] @relation("EquipementPointServiceActuel")
 }
-
 
 model Equipement {
-  id              Int                     @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
+
+  // Identification
   nom             String
   modele          String?
-  categorie       String?
-  images          String?                 @db.NVarChar(Max)
-  dateAcquisition DateTime                @default(now())
-  status          String                  @default("ACTIF")
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  archive         Boolean                 @default(false)
+  images          String?   @db.NVarChar(Max)
+
+  // Cycle de vie
+  dateAcquisition DateTime  @default(now())
+
+  // État technique
+  etat            String    @default("FONCTIONNEL")
+  // FONCTIONNEL | EN_PANNE | EN_REPARATION | HORS_SERVICE | EN_TRANSIT
+
+  // Statut d’affectation
+  status           String   @default("DISPONIBLE")
+  // DISPONIBLE | ASSIGNE
+
+  // Localisation actuelle
+  agenceActuelleId       Int?
+  pointServiceActuelId   Int?
+
+  // Responsable actuel
+  responsableActuelId   Int?
+
+  // Métadonnées
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  archive         Boolean   @default(false)
   archivedAt      DateTime?
-  affectations    AffectationEquipement[]
+
+  mouvements          MouvementEquipement[]
+
+  agenceActuelle      Agence?         @relation("EquipementAgenceActuelle", fields: [agenceActuelleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pointServiceActuel  PointDeService? @relation("EquipementPointServiceActuel", fields: [pointServiceActuelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responsableActuel   User?           @relation("EquipementResponsableActuel", fields: [responsableActuelId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  notifications Notification[] @relation("NotificationEquipement")
 }
 
-model AffectationEquipement {
-  id               Int             @id @default(autoincrement())
-  equipementId     Int
-  employeId        Int
-  quantite         Int             @default(1)
-  status           String          @default("BON")
-  dateAffectation  DateTime        @default(now())
-  dateFin          DateTime?
-  archive          Boolean         @default(false)
-  archivedAt       DateTime?
 
-  // Champs pour la destination
-  pointServiceOrigineId Int?
-  pointServiceDestId    Int?
+model MouvementEquipement {
+  id Int @id @default(autoincrement())
 
-  equipement      Equipement      @relation(fields: [equipementId], references: [id], onUpdate: NoAction)
-  employe         User            @relation(fields: [employeId], references: [id], onUpdate: NoAction)
+  // Type de mouvement
+  type String
+  commentaire String?
+  createdAt DateTime @default(now())
+  etatAvant String?
+  etatApres String?
+
+  // Liens principaux
+  equipementId Int
+  initiateurId Int
+
+  // Localisation source
+  agenceSourceId        Int?
+  pointServiceSourceId Int?
+
+  // Localisation destination
+  agenceDestinationId        Int?
+  pointServiceDestinationId Int?
+
+  // Responsables
+  responsableSourceId      Int?
+  responsableDestinationId Int?
+
+  // Confirmation de réception
+  confirme         Boolean   @default(false)
+  confirmeParId    Int?
+  dateConfirmation DateTime?
+
+  // Relations
+  equipement Equipement @relation(fields: [equipementId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  initiateur User @relation(name: "MouvementInitiateur", fields: [initiateurId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responsableSource User? @relation(name: "MouvementResponsableSource", fields: [responsableSourceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  responsableDestination User? @relation(name: "MouvementResponsableDest", fields: [responsableDestinationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  confirmePar User? @relation(name: "MouvementConfirmePar", fields: [confirmeParId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Agences
+  agenceSource Agence? @relation(name: "MouvementAgenceSource", fields: [agenceSourceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  agenceDestination Agence? @relation(name: "MouvementAgenceDest", fields: [agenceDestinationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Points de service
+  pointServiceSource PointDeService? @relation(name: "MvtPSSource", fields: [pointServiceSourceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   
-  pointServiceOrigine PointDeService? @relation("OrigineAffectation", fields: [pointServiceOrigineId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  pointServiceDest    PointDeService? @relation("DestAffectation", fields: [pointServiceDestId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-
+  pointServiceDestination PointDeService? @relation(name: "MvtPSDest", fields: [pointServiceDestinationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notifications Notification[] @relation("NotificationMouvement")
 }
+
 
 
 model Credit {
@@ -262,35 +325,56 @@ model Credit {
   archive          Boolean   @default(false)
   archivedAt       DateTime?
 
-  beneficiaireId   Int
-  beneficiaire     User @relation(fields: [beneficiaireId], references: [id])
-  actions          ActionCredit[]
-  histories        CreditHistory[]
+  beneficiaireId Int
+  beneficiaire   User            @relation(fields: [beneficiaireId], references: [id])
+  actions        ActionCredit[]
+  histories      CreditHistory[]
 }
 
 model ActionCredit {
   id          Int       @id @default(autoincrement())
   creditId    Int
   agentId     Int
-  type        String    // VISITE, RAPPEL, REMBOURSEMENT
+  type        String // VISITE, RAPPEL, REMBOURSEMENT
   commentaire String?
   latitude    Float?
   longitude   Float?
   date        DateTime  @default(now())
   archive     Boolean   @default(false)
   archivedAt  DateTime?
-  credit      Credit   @relation(fields: [creditId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  agent       User     @relation(fields: [agentId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  credit      Credit    @relation(fields: [creditId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  agent       User      @relation(fields: [agentId], references: [id], onUpdate: NoAction, onDelete: NoAction)
 }
 
 model CreditHistory {
-  id         Int      @id @default(autoincrement())
-  creditId   Int
-  field      String
-  oldValue   String?
-  newValue   String?
-  updatedAt  DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  creditId  Int
+  field     String
+  oldValue  String?
+  newValue  String?
+  updatedAt DateTime @default(now())
 
-  credit     Credit   @relation(fields: [creditId], references: [id])
+  credit Credit @relation(fields: [creditId], references: [id])
+}
+
+
+model Notification {
+  id Int @id @default(autoincrement())
+  titre   String
+  message String
+  type    String
+  canal   String @default("IN_APP")
+  lu      Boolean @default(false)
+  luAt    DateTime?
+
+  userId       Int
+  equipementId Int?
+  mouvementId  Int?
+
+  createdAt DateTime @default(now())
+
+  user       User               @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  equipement Equipement?        @relation("NotificationEquipement", fields: [equipementId], references: [id], onDelete: NoAction)
+  mouvement  MouvementEquipement? @relation("NotificationMouvement", fields: [mouvementId], references: [id], onDelete: NoAction)
 }
 

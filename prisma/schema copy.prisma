@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Agence {
+  id           Int              @id @default(autoincrement())
+  nom_agence   String
+  code_agence  String           @unique
+  ville        String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  archive      Boolean          @default(false)
+  archivedAt   DateTime?
+  pointService PointDeService[]
+  users        User[]
+}
+
+model Poste {
+  id         Int       @id @default(autoincrement())
+  nom        String    @unique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archive    Boolean   @default(false)
+  archivedAt DateTime?
+  users      User[]
+}
+
+model User {
+  id                Int                     @id @default(autoincrement())
+  nom               String
+  prenom            String
+  username          String                  @unique
+  email             String                  @unique
+  password          String
+  code_identifiant  String                  @unique
+  agenceId          Int
+  posteId           Int
+  chefId            Int?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  archive           Boolean                 @default(false)
+  archivedAt        DateTime?
+  actionCredit      ActionCredit[]
+  creditBeneficiaire  Credit[]
+  affectations      AffectationEquipement[]
+  decisions         Decision[]
+  demandesAValider  Demande[]               @relation("DemandeCurrentApprover")
+  demandes          Demande[]
+  evenementsPublies Evenement[]             @relation("EvenementPublieur")
+  evenementsCrees   Evenement[]             @relation("EvenementCreateur")
+  agence            Agence                  @relation(fields: [agenceId], references: [id])
+  chef              User?                   @relation("ChefSubordonne", fields: [chefId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordonnes       User[]                  @relation("ChefSubordonne")
+  poste             Poste                   @relation(fields: [posteId], references: [id])
+  roles             UserRole[]
+}
+
+model Role {
+  id              Int              @id @default(autoincrement())
+  nom             String           @unique
+  slug            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  archive         Boolean          @default(false)
+  archivedAt      DateTime?
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+}
+
+model UserRole {
+  userId     Int
+  roleId     Int
+  assignedAt DateTime  @default(now())
+  archive    Boolean   @default(false)
+  archivedAt DateTime?
+  role       Role      @relation(fields: [roleId], references: [id], onUpdate: NoAction)
+  user       User      @relation(fields: [userId], references: [id], onUpdate: NoAction)
+
+  @@id([userId, roleId])
+}
+
+model Permission {
+  id              Int              @id @default(autoincrement())
+  nom             String           @unique
+  slug            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  archive         Boolean          @default(false)
+  archivedAt      DateTime?
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  createdAt    DateTime   @default(now())
+  archive      Boolean    @default(false)
+  archivedAt   DateTime?
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model Demande {
+  id                Int                @id @default(autoincrement())
+  type              String
+  dateDebut         DateTime
+  dateFin           DateTime
+  motif             String
+  status            String             @default("EN_ATTENTE")
+  pdfPath           String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  userId            Int
+  archive           Boolean            @default(false)
+  archivedAt        DateTime?
+  currentApproverId Int?
+  absence           Absence?
+  conge             Conge?
+  decisions         Decision[]
+  currentApprover   User?              @relation("DemandeCurrentApprover", fields: [currentApproverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user              User               @relation(fields: [userId], references: [id])
+  demandePermission DemandePermission?
+}
+
+model Conge {
+  id         Int       @id @default(autoincrement())
+  nbJours    Int
+  demandeId  Int       @unique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archive    Boolean   @default(false)
+  archivedAt DateTime?
+  demande    Demande   @relation(fields: [demandeId], references: [id], onUpdate: NoAction)
+}
+
+model Absence {
+  id            Int       @id @default(autoincrement())
+  justification String
+  demandeId     Int       @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  archive       Boolean   @default(false)
+  archivedAt    DateTime?
+  demande       Demande   @relation(fields: [demandeId], references: [id], onUpdate: NoAction)
+}
+
+model DemandePermission {
+  id         Int       @id @default(autoincrement())
+  duree      String
+  demandeId  Int       @unique
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archive    Boolean   @default(false)
+  archivedAt DateTime?
+  demande    Demande   @relation(fields: [demandeId], references: [id], onUpdate: NoAction)
+}
+
+model Decision {
+  id         Int       @id @default(autoincrement())
+  status     String
+  niveau     String
+  userId     Int
+  demandeId  Int
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now())
+  archive    Boolean   @default(false)
+  archivedAt DateTime?
+  demande    Demande   @relation(fields: [demandeId], references: [id], onUpdate: NoAction)
+  user       User      @relation(fields: [userId], references: [id], onUpdate: NoAction)
+}
+
+model Evenement {
+  id          Int       @id @default(autoincrement())
+  titre       String
+  description String
+  dateDebut   DateTime
+  dateFin     DateTime
+  images      String?   @db.NVarChar(Max)
+  statut      String    @default("EN_ATTENTE")
+  userId      Int
+  publishedBy Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archive     Boolean   @default(false)
+  archivedAt  DateTime?
+  publieur    User?     @relation("EvenementPublieur", fields: [publishedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user        User      @relation("EvenementCreateur", fields: [userId], references: [id], onUpdate: NoAction)
+}
+
+
+model PointDeService {
+  id           Int                     @id @default(autoincrement())
+  nom          String
+  agenceId     Int
+  affectationsOrigine AffectationEquipement[] @relation("OrigineAffectation")
+  affectationsDest    AffectationEquipement[] @relation("DestAffectation")
+  agence       Agence                  @relation(fields: [agenceId], references: [id], onUpdate: NoAction)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  archive     Boolean   @default(false)
+  archivedAt  DateTime?
+}
+
+
+model Equipement {
+  id              Int                     @id @default(autoincrement())
+  nom             String
+  modele          String?
+  categorie       String?
+  images          String?                 @db.NVarChar(Max)
+  dateAcquisition DateTime                @default(now())
+  status          String                  @default("ACTIF")
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  archive         Boolean                 @default(false)
+  archivedAt      DateTime?
+  affectations    AffectationEquipement[]
+}
+
+model AffectationEquipement {
+  id               Int             @id @default(autoincrement())
+  equipementId     Int
+  employeId        Int
+  quantite         Int             @default(1)
+  status           String          @default("BON")
+  dateAffectation  DateTime        @default(now())
+  dateFin          DateTime?
+  archive          Boolean         @default(false)
+  archivedAt       DateTime?
+
+  // Champs pour la destination
+  pointServiceOrigineId Int?
+  pointServiceDestId    Int?
+
+  equipement      Equipement      @relation(fields: [equipementId], references: [id], onUpdate: NoAction)
+  employe         User            @relation(fields: [employeId], references: [id], onUpdate: NoAction)
+  
+  pointServiceOrigine PointDeService? @relation("OrigineAffectation", fields: [pointServiceOrigineId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  pointServiceDest    PointDeService? @relation("DestAffectation", fields: [pointServiceDestId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+}
+
+
+model Credit {
+  id               Int       @id @default(autoincrement())
+  montant          Float
+  montantRembourse Float     @default(0)
+  tauxInteret      Float
+  dateDebut        DateTime
+  dateFin          DateTime
+  status           String    @default("EN_COURS")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  archive          Boolean   @default(false)
+  archivedAt       DateTime?
+
+  beneficiaireId   Int
+  beneficiaire     User @relation(fields: [beneficiaireId], references: [id])
+  actions          ActionCredit[]
+  histories        CreditHistory[]
+}
+
+model ActionCredit {
+  id          Int       @id @default(autoincrement())
+  creditId    Int
+  agentId     Int
+  type        String    // VISITE, RAPPEL, REMBOURSEMENT
+  commentaire String?
+  latitude    Float?
+  longitude   Float?
+  date        DateTime  @default(now())
+  archive     Boolean   @default(false)
+  archivedAt  DateTime?
+  credit      Credit   @relation(fields: [creditId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  agent       User     @relation(fields: [agentId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+}
+
+model CreditHistory {
+  id         Int      @id @default(autoincrement())
+  creditId   Int
+  field      String
+  oldValue   String?
+  newValue   String?
+  updatedAt  DateTime @default(now())
+
+  credit     Credit   @relation(fields: [creditId], references: [id])
+}
+

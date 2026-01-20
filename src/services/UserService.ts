@@ -107,40 +107,63 @@ export default class UserService {
     });
   }
 
-  // Mettre à jour un utilisateur
-  public async updateUser(userId: number, data: any): Promise<User> {
-    if (!Number.isInteger(userId) || userId <= 0) throw new Error("ID utilisateur invalide");
-
-    const validated = updateUserSchema.parse(data);
-
-    if (validated.password) {
-      validated.password = await bcrypt.hash(validated.password, 10);
-    }
-
-    const { roles, posteId, ...userData } = validated;
-
-    const updatedUser = await prismaClient.user.update({
-      where: { id: userId },
-      data: {
-        ...userData,
-        ...(posteId !== undefined ? { posteId } : {}),
-      },
-      include: { roles: { include: { role: true } }, agence: true, poste: true, chef: true },
-    });
-
-    if (roles) {
-      // Supprimer les anciens rôles uniquement si roles fourni
-      await prismaClient.userRole.deleteMany({ where: { userId } });
-
-      if (roles.length > 0) {
-        await prismaClient.userRole.createMany({
-          data: roles.map((roleId: number) => ({ userId, roleId })),
-        });
-      }
-    }
-
-    return updatedUser;
+  // UserService.ts
+public async updateUser(userId: number, data: any): Promise<User> {
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error("ID utilisateur invalide");
   }
+
+  // 1️⃣ Valider les données
+  const validated = updateUserSchema.parse(data);
+
+  // 2️⃣ Récupérer l'utilisateur actuel
+  const user = await prismaClient.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("Utilisateur non trouvé");
+
+  // 3️⃣ Vérifier le mot de passe actuel si on veut le changer
+  if (validated.currentPassword && validated.password) {
+    const isValid = await bcrypt.compare(validated.currentPassword, user.password);
+    if (!isValid) throw new Error("Mot de passe actuel incorrect");
+
+    // Hasher le nouveau mot de passe
+    validated.password = await bcrypt.hash(validated.password, 10);
+  }
+
+  // 4️⃣ Supprimer currentPassword avant Prisma
+  delete validated.currentPassword;
+
+  // 5️⃣ Séparer les champs spéciaux
+  const { roles, posteId, ...userData } = validated;
+
+  // 6️⃣ Mise à jour dans Prisma
+  const updatedUser = await prismaClient.user.update({
+    where: { id: userId },
+    data: {
+      ...userData,
+      ...(posteId !== undefined ? { posteId } : {}),
+      ...(validated.password ? { password: validated.password } : {}),
+    },
+    include: {
+      roles: { include: { role: true } },
+      agence: true,
+      poste: true,
+      chef: true,
+    },
+  });
+
+  // 7️⃣ Mise à jour des rôles si fournis
+  if (roles) {
+    await prismaClient.userRole.deleteMany({ where: { userId } });
+    if (roles.length > 0) {
+      await prismaClient.userRole.createMany({
+        data: roles.map((roleId: number) => ({ userId, roleId })),
+      });
+    }
+  }
+
+  return updatedUser;
+}
+
 
   // Supprimer un utilisateur avec toutes ses relations
   public async deleteUser(userId: number): Promise<User> {
@@ -171,7 +194,6 @@ export default class UserService {
     }
 
     // --- Étape 4 : Supprimer actions, équipements, événements ---
-    await prismaClient.action.deleteMany({ where: { userId } });
     await prismaClient.evenement.deleteMany({ where: { userId } });
 
     // --- Étape 5 : Supprimer les rôles ---

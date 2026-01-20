@@ -1,252 +1,452 @@
 import prismaClient from "../utils/prismaClient";
 import { createEquipementSchema, updateEquipementSchema } from "../validations/equipementSchema";
-import { Equipement } from "../types/index";
-
-interface EquipementFilters {
-  nom?: string;
-  categorie?: string;
-  status?: string;
-  proprietaireId?: number;
-}
+import MouvementService from "./MouvementService";
+import { sendMail } from "../utils/mailer";
 
 export default class EquipementService {
+  private mouvementService = new MouvementService();
 
-  // 🔹 Récupérer tous les équipements
-  public async getAllEquipements(filters?: EquipementFilters): Promise<Equipement[]> {
-    const where: any = { archive: false };
-
-    if (filters) {
-      if (filters.nom) where.nom = { contains: filters.nom, mode: "insensitive" };
-      if (filters.categorie) where.categorie = { contains: filters.categorie, mode: "insensitive" };
-      if (filters.status) where.status = filters.status;
-      if (filters.proprietaireId) where.proprietaireId = filters.proprietaireId;
-    }
-
-    const list = await prismaClient.equipement.findMany({
-      where,
-      include: {
-        proprietaire: true,
-        affectations: {
-          include: {
-            employe: {
-              include: {
-                poste: true,
-                agence: true,
-                roles: true,
-                chef: true,
-              }
-            }
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return list.map(e => ({
-      ...e,
-      images: e.images ? JSON.parse(e.images) : [],
-    }));
-  }
-
-  // 🔹 Récupérer un équipement par ID
- public async getEquipementById(id: number): Promise<Equipement | null> {
-  if (!Number.isInteger(id) || id <= 0) throw new Error("ID d'équipement invalide");
-
-  const equip = await prismaClient.equipement.findUnique({
-    where: { id },
-    include: {
-      proprietaire: true,
-      affectations: {
-        include: {
-          employe: {
-            include: {
-              poste: true,
-              agence: true,
-              chef: true,
-              roles: {
-                include: {
-                  role: true
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-  });
-
-
-  if (!equip) return null;
-
-  return {
-    ...equip,
-    images: equip.images ? JSON.parse(equip.images) : [],
-  };
-}
-
-
-  // 🔹 Créer un équipement
-  public async createEquipement(data: any): Promise<Equipement> {
+  // ----------------- CRUD Équipement -----------------
+  async createEquipement(data: any) {
     const validated = createEquipementSchema.parse(data);
-
-    // Vérifier si le propriétaire existe
-    if (validated.proprietaireId) {
-      const proprietaire = await prismaClient.user.findUnique({
-        where: { id: validated.proprietaireId },
-      });
-      if (!proprietaire) throw new Error("Propriétaire non trouvé");
-    }
-
-    // Images -> JSON
-    const images = validated.images ? JSON.stringify(validated.images) : null;
-
-    const equip = await prismaClient.equipement.create({
+    return prismaClient.equipement.create({
       data: {
         ...validated,
-        images,
-        quantiteDisponible: validated.quantiteTotale,
-      },
-      include: {
-        proprietaire: true,
-        affectations: true,
+        images: validated.images ? JSON.stringify(validated.images) : null,
       },
     });
-
-    return {
-      ...equip,
-      images: equip.images ? JSON.parse(equip.images) : [],
-    };
   }
 
-  // 🔹 Modifier un équipement
- public async updateEquipement(id: number, data: any): Promise<Equipement> {
-  if (!Number.isInteger(id) || id <= 0)
-    throw new Error("ID invalide");
-
-  const validated = updateEquipementSchema.parse(data);
-
-  const equip = await prismaClient.equipement.findUnique({
-    where: { id },
-    include: { affectations: true },
-  });
-
-  if (!equip) throw new Error("Équipement non trouvé");
-
-  if (validated.quantiteDisponible !== undefined)
-    delete validated.quantiteDisponible;
-
-  if (validated.quantiteTotale !== undefined) {
-    const dejaAffecte = equip.affectations.reduce((s, a) => s + a.quantite, 0);
-
-    if (validated.quantiteTotale < dejaAffecte)
-      throw new Error(`Impossible : ${dejaAffecte} équipements déjà affectés`);
-
-    validated.quantiteDisponible = validated.quantiteTotale - dejaAffecte;
-  }
-
-  // ---------------------------
-  // 🔹 Transformation images
-  // ---------------------------
-  const dataToUpdate: any = {
-    ...validated,
-  };
-
-  if (validated.images !== undefined) {
-    dataToUpdate.images = JSON.stringify(validated.images); // jamais null
-  }
-
-  const updated = await prismaClient.equipement.update({
-    where: { id },
-    data: dataToUpdate,
-    include: {
-      proprietaire: true,
-      affectations: true,
-    },
-  });
-
-  return {
-    ...updated,
-    images: updated.images ? JSON.parse(updated.images) : [],
-  };
-}
-
-
- // services/EquipementService.ts (partie getEquipementsFiltered)
-public async getEquipementsFiltered(agenceId?: number, posteId?: number): Promise<Equipement[]> {
-  try {
-    // construis le filtre employe uniquement si on a au moins une valeur
-    const employeFilter: any = {};
-    if (typeof agenceId === "number" && !Number.isNaN(agenceId)) employeFilter.agenceId = agenceId;
-    if (typeof posteId === "number" && !Number.isNaN(posteId)) employeFilter.posteId = posteId;
-
-    // where principal
-    const where: any = { archive: false };
-
-    // n'ajouter affectations.some que si employeFilter non vide
-    if (Object.keys(employeFilter).length > 0) {
-      where.affectations = {
-        some: {
-          employe: employeFilter,
-        },
-      };
-    }
-
+  async getAllEquipements() {
     const list = await prismaClient.equipement.findMany({
-      where,
-      include: {
-        affectations: {
-          include: {
-            employe: {
-              include: {
-                poste: true,
-                agence: true,
-                roles: {
-                  include: { role: true }
-                },
-                chef: true
-              }
-            }
-          }
-        },
-        proprietaire: true
-      },
+      where: { archive: false },
       orderBy: { createdAt: "desc" },
+      include: {
+        responsableActuel: true,
+        pointServiceActuel: true,
+        agenceActuelle: true,
+      },
     });
 
-    return list.map(e => ({
-      ...e,
-      images: e.images ? JSON.parse(e.images) : [],
+    return list.map(eq => ({
+      ...eq,
+      images: eq.images ? JSON.parse(eq.images) : [],
     }));
-  } catch (err: any) {
-    // remonter une erreur claire (le controller loggera le stack)
-    throw new Error(`Erreur getEquipementsFiltered service: ${err.message}`);
   }
-}
 
 
 
+  async getEquipementById(id: number) {
+    const eq = await prismaClient.equipement.findUnique({
+      where: { id },
+      include: { mouvements: true },
+    });
+    if (!eq) return null;
+    return { ...eq, images: eq.images ? JSON.parse(eq.images) : [] };
+  }
 
-  // 🔹 Soft delete
-  public async deleteEquipement(id: number): Promise<void> {
-    if (!Number.isInteger(id) || id <= 0) throw new Error("ID invalide");
+  async updateEquipement(id: number, data: any) {
+    const validated = updateEquipementSchema.parse(data);
+    return prismaClient.equipement.update({
+      where: { id },
+      data: { ...validated, images: validated.images ? JSON.stringify(validated.images) : undefined },
+    });
+  }
 
-    await prismaClient.equipement.update({
+  async archiveEquipement(id: number) {
+    return prismaClient.equipement.update({
       where: { id },
       data: { archive: true, archivedAt: new Date() },
     });
   }
 
-  // 🔹 Changer le statut
-  public async declarerStatus(id: number, status: "ACTIF" | "HORS_SERVICE"): Promise<Equipement> {
-    if (!Number.isInteger(id) || id <= 0) throw new Error("ID invalide");
+  // ----------------- Déclaration état / statut -----------------
+  async declarerEtatEquipement(
+    id: number,
+    etat: "FONCTIONNEL" | "EN_PANNE" | "EN_REPARATION" | "HORS_SERVICE" | "EN_TRANSIT"
+  ) {
+    const eq = await prismaClient.equipement.findUnique({ where: { id } });
+    if (!eq) throw new Error("Équipement introuvable");
 
-    if (!["ACTIF", "HORS_SERVICE"].includes(status)) {
-      throw new Error("Status invalide");
+    // ❌ Interdictions
+    if (eq.etat === "EN_REPARATION" && etat === "EN_TRANSIT") {
+      throw new Error("Impossible : équipement en réparation");
+    }
+
+    let status = eq.status;
+
+    if (["EN_REPARATION", "EN_PANNE", "EN_TRANSIT", "HORS_SERVICE"].includes(etat)) {
+      status = "INDISPONIBLE";
+    }
+
+    if (etat === "FONCTIONNEL" && eq.responsableActuelId) {
+      status = "ASSIGNE";
+    }
+
+    if (etat === "FONCTIONNEL" && !eq.responsableActuelId) {
+      status = "DISPONIBLE";
     }
 
     return prismaClient.equipement.update({
       where: { id },
-      data: { status },
+      data: { etat, status },
     });
+  }
+
+
+  async declarerStatusEquipement(id: number, status: "DISPONIBLE" | "ASSIGNE" | "INDISPONIBLE") {
+    return prismaClient.equipement.update({ where: { id }, data: { status } });
+  }
+
+  // ----------------- Affectation -----------------
+  async affecterEquipement(data: {
+    equipementId: number;
+    initiateurId: number;
+    employeId: number;
+    pointServiceDestId?: number;
+  }) {
+
+    const equipement = await prismaClient.equipement.findUnique({
+        where: { id: data.equipementId },
+      });
+
+      if (!equipement) throw new Error("Équipement introuvable");
+
+      if (equipement.etat !== "FONCTIONNEL") {
+        throw new Error("Équipement non fonctionnel");
+     }
+
+
+    // Créer le mouvement
+    const mouvement = await this.mouvementService.createMouvement({
+      type: "AFFECTATION",
+      equipementId: data.equipementId,
+      initiateurId: data.initiateurId,
+      responsableDestinationId: data.employeId,
+      pointServiceDestinationId: data.pointServiceDestId,
+      etatAvant: "FONCTIONNEL",
+      etatApres: "FONCTIONNEL",
+    });
+
+    // Mettre l’équipement en transit
+    await prismaClient.equipement.update({
+        where: { id: data.equipementId },
+        data: {
+          etat: "FONCTIONNEL",
+          status: "ASSIGNE",
+          responsableActuelId: data.employeId,
+          pointServiceActuelId: data.pointServiceDestId ?? null,
+        }
+      });
+
+    // Notification et mail
+    await this.notifyUser(
+      data.employeId,
+      "Nouvel équipement assigné",
+      `Un équipement (ID: ${data.equipementId}) vous a été assigné.`,
+      "AFFECTATION",
+      data.equipementId,
+      mouvement.id
+    );
+
+    return mouvement;
+  }
+
+  // ----------------- Transfert -----------------
+  async transfererEquipement(data: {
+    equipementId: number;
+    initiateurId: number;
+    agenceSourceId?: number;
+    agenceDestinationId?: number;
+    pointServiceSourceId?: number;
+    pointServiceDestId?: number;
+    responsableDestinationId?: number;
+  }) {
+
+    const equipement = await prismaClient.equipement.findUnique({
+      where: { id: data.equipementId },
+    });
+
+    if (!equipement) throw new Error("Équipement introuvable");
+
+   if (!["FONCTIONNEL"].includes(equipement.etat)) {
+      throw new Error("Transfert impossible dans cet état");
+    }
+
+
+    const mouvement = await this.mouvementService.createMouvement({
+      type: "TRANSFERT",
+      equipementId: data.equipementId,
+      initiateurId: data.initiateurId,
+      agenceSourceId: data.agenceSourceId,
+      agenceDestinationId: data.agenceDestinationId,
+      pointServiceSourceId: data.pointServiceSourceId,
+      pointServiceDestinationId: data.pointServiceDestId,
+      responsableDestinationId: data.responsableDestinationId,
+      etatAvant: "FONCTIONNEL",
+      etatApres: "EN_TRANSIT",
+    });
+
+    await this.declarerEtatEquipement(data.equipementId, "EN_TRANSIT");
+
+    if (data.responsableDestinationId) {
+      await this.notifyUser(
+        data.responsableDestinationId,
+        "Transfert d'équipement",
+        `Un équipement (ID: ${data.equipementId}) est en transfert vers vous.`,
+        "TRANSFERT",
+        data.equipementId,
+        mouvement.id
+      );
+    }
+
+    return mouvement;
+  }
+
+
+  // ----------------- Envoi en réparation -----------------
+async envoyerEnReparation(data: {
+  equipementId: number;
+  initiateurId: number;
+  reparateurId: number;
+  agenceSourceId?: number;
+  pointServiceSourceId?: number;
+  descriptionPanne: string;
+}) {
+  const equipement = await prismaClient.equipement.findUnique({
+    where: { id: data.equipementId },
+  });
+  if (!equipement) throw new Error(`Équipement avec ID ${data.equipementId} introuvable`);
+  if (!["EN_PANNE", "FONCTIONNEL"].includes(equipement.etat)) {
+    throw new Error("Équipement non éligible à la réparation");
+  }
+
+  const reparateur = await prismaClient.user.findUnique({
+    where: { id: data.reparateurId },
+  });
+  if (!reparateur) throw new Error(`Réparateur avec ID ${data.reparateurId} introuvable`);
+
+  const mouvement = await this.mouvementService.createMouvement({
+    type: "REPARATION",
+    equipementId: data.equipementId,
+    initiateurId: data.initiateurId,
+    responsableDestinationId: data.reparateurId,
+    agenceSourceId: data.agenceSourceId,
+    pointServiceSourceId: data.pointServiceSourceId,
+    etatAvant: equipement.etat,
+    etatApres: "EN_REPARATION",
+    commentaire: data.descriptionPanne, // 🔑 ici
+  });
+
+  await prismaClient.equipement.update({
+    where: { id: data.equipementId },
+    data: { etat: "EN_REPARATION", status: "INDISPONIBLE" },
+  });
+
+  await this.notifyUser(
+    data.reparateurId,
+    "Équipement en réparation",
+    `Un équipement (ID ${data.equipementId}) vous a été confié pour réparation.`,
+    "REPARATION",
+    data.equipementId,
+    mouvement.id
+  );
+
+  return mouvement;
+}
+
+ 
+
+async retourDeReparation(data: {
+  mouvementId: number;       // mouvement REPARATION
+  initiateurId: number;      // réparateur
+  etatFinal: "FONCTIONNEL" | "EN_PANNE";
+}) {
+
+  if (!["FONCTIONNEL", "EN_PANNE"].includes(data.etatFinal)) {
+    throw new Error("etatFinal invalide");
+  }
+
+
+  const reparation = await this.mouvementService.getMouvementById(data.mouvementId);
+
+  if (!reparation || reparation.type !== "REPARATION") {
+    throw new Error("Mouvement de réparation invalide");
+  }
+
+  // 🔐 La réparation doit être confirmée AVANT
+  if (!reparation.confirme) {
+    throw new Error("La réception par le réparateur n’a pas encore été confirmée");
+  }
+
+  if (reparation.responsableDestinationId !== data.initiateurId) {
+    throw new Error("Seul le réparateur peut retourner l’équipement");
+  }
+
+  const equipement = reparation.equipement;
+
+
+  const retour = await this.mouvementService.createMouvement({
+    type: "RETOUR_REPARATION",
+    equipementId: equipement.id,
+    initiateurId: data.initiateurId, // réparateur
+    agenceDestinationId: reparation.agenceSourceId,
+    etatAvant: "EN_REPARATION",
+    etatApres: data.etatFinal,
+    commentaire: `REPARATION_ID:${reparation.id}`, // 🔑 TRÈS IMPORTANT
+  });
+
+
+
+  // 🔄 Équipement en transit
+  await prismaClient.equipement.update({
+    where: { id: equipement.id },
+    data: {
+      etat: "EN_TRANSIT",
+      status: "INDISPONIBLE",
+    },
+  });
+
+  return retour;
+}
+
+
+
+  // ----------------- Confirmation de réception -----------------
+async confirmerReception(mouvementId: number, confirmeParId: number) {
+
+  const mouvement = await this.mouvementService.getMouvementById(mouvementId);
+  if (!mouvement) throw new Error("Mouvement introuvable");
+
+  if (mouvement.confirme) {
+    throw new Error("Réception déjà confirmée");
+  }
+
+
+ // ✅ Réception d’un équipement en réparation (par le réparateur)
+  if (mouvement.type === "REPARATION") {
+    if (mouvement.responsableDestinationId !== confirmeParId) {
+      throw new Error("Seul le réparateur peut confirmer la réception");
+    }
+
+    return this.mouvementService.confirmerMouvement(
+      mouvementId,
+      confirmeParId
+    );
+  }
+
+
+  // 🔐 Cas RETOUR DE RÉPARATION
+  if (mouvement.type === "RETOUR_REPARATION") {
+
+    const reparation = await prismaClient.mouvementEquipement.findFirst({
+      where: {
+        equipementId: mouvement.equipementId,
+        type: "REPARATION",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!reparation || reparation.initiateurId !== confirmeParId) {
+      throw new Error("Seul l’initiateur de la réparation peut confirmer le retour");
+    }
+  }
+
+  const mouvementConfirme =
+  await this.mouvementService.confirmerMouvement(mouvementId, confirmeParId);
+
+
+  const updateData: any = {
+    etat: "FONCTIONNEL",
+    status: mouvement.responsableDestination ? "ASSIGNE" : "DISPONIBLE",
+
+    agenceActuelleId: null,
+    pointServiceActuelId: null,
+    responsableActuelId: null,
+  };
+
+  // ✅ Destination RESPONSABLE
+  if (mouvement.responsableDestination) {
+    updateData.responsableActuelId = mouvement.responsableDestination.id;
+
+    if (mouvement.pointServiceDestination) {
+      updateData.pointServiceActuelId =
+        mouvement.pointServiceDestination.id;
+    }
+  }
+
+  // ✅ Destination POINT DE SERVICE
+  else if (mouvement.pointServiceDestination) {
+    updateData.pointServiceActuelId =
+      mouvement.pointServiceDestination.id;
+  }
+
+  // ✅ Destination AGENCE
+  else if (mouvement.agenceDestination) {
+    updateData.agenceActuelleId = mouvement.agenceDestination.id;
+  }
+
+  // ✅ CAS RETRAIT
+  if (mouvement.type === "RETRAIT") {
+    updateData.etat = "HORS_SERVICE";
+    updateData.status = "DISPONIBLE";
+  }
+
+  if (mouvement.type === "RETOUR_REPARATION") {
+
+  // 🔐 Seul celui qui a envoyé en réparation peut confirmer le retour
+  const reparation = await prismaClient.mouvementEquipement.findFirst({
+    where: {
+      equipementId: mouvement.equipementId,
+      type: "REPARATION",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!reparation || reparation.initiateurId !== confirmeParId) {
+    throw new Error("Seul l’initiateur de la réparation peut confirmer le retour");
+  }
+
+  updateData.etat = mouvement.etatApres;
+  updateData.status =
+    mouvement.etatApres === "FONCTIONNEL" ? "DISPONIBLE" : "INDISPONIBLE";
+
+  updateData.responsableActuelId = null;
+}
+
+
+  await prismaClient.equipement.update({
+    where: { id: mouvement.equipementId },
+    data: updateData,
+  });
+
+  await this.notifyUser(
+    mouvement.initiateurId,
+    "Réception confirmée",
+    `L’équipement ${mouvement.equipementId} a bien été reçu.`,
+    "CONFIRMATION",
+    mouvement.equipementId,
+    mouvementId
+  );
+
+  return mouvementConfirme;
+}
+
+
+  // ----------------- Historique des mouvements -----------------
+  async getMouvementsEquipement(equipementId: number, filter?: any) {
+    return this.mouvementService.getAllMouvements({ equipementId, ...filter });
+  }
+
+  // ----------------- Fonction utilitaire notifications + mails -----------------
+  private async notifyUser(userId: number, titre: string, message: string, type: string, equipementId?: number, mouvementId?: number) {
+    await prismaClient.notification.create({
+      data: { userId, titre, message, type, equipementId, mouvementId },
+    });
+
+    const user = await prismaClient.user.findUnique({ where: { id: userId } });
+    if (user?.email) {
+      await sendMail(user.email, titre, message);
+    }
   }
 }

@@ -12,11 +12,12 @@ import EvenementController from "../controllers/EvenementController";
 import AgenceController from "../controllers/AgenceController";
 import PosteController from "../controllers/PosteController";
 import EquipementController from "../controllers/EquipementController";
-import AffectationController from "../controllers/AffectationController";
+import MouvementController from "../controllers/MouvementController";
 import ActionController from "../controllers/ActionCreditController";
 import PointServiceController from "../controllers/PointServiceController";
 import CreditController from "../controllers/creditController";
 import ActionCreditController from "../controllers/ActionCreditController";
+import NotificationController from "../controllers/NotificationController";
 import upload from "../utils/configMulter";
 
 import { authMiddleware } from "../middlewares/AuthMiddleware";
@@ -35,11 +36,12 @@ const evenementController = new EvenementController();
 const agenceController = new AgenceController();
 const posteController = new PosteController();
 const equipementController = new EquipementController();
-const affectationController = new AffectationController();
+const mouvementController = new MouvementController();
 const actionController = new ActionController();
 const pointServiceController = new PointServiceController();
 const creditController = new CreditController();
 const actionCreditController = new ActionCreditController();
+const notificationController = new NotificationController();
 
 export default (app: Express): void => {
 
@@ -148,27 +150,31 @@ export default (app: Express): void => {
   app.get('/points-de-service/:id', pointServiceController.getById.bind(pointServiceController));
   app.put('/points-de-service/:id', pointServiceController.update.bind(pointServiceController));
   app.delete('/points-de-service/:id', pointServiceController.delete.bind(pointServiceController));
-  
 
 
   // ======================= EQUIPEMENTS =====================
-  app.post('/equipements', upload.array('images'), equipementController.create.bind(equipementController));
-  app.get('/equipements', equipementController.getAll.bind(equipementController));
-  app.get('/equipements/:id', equipementController.getById.bind(equipementController));
-  app.put('/equipements/:id', upload.array('images'), equipementController.update.bind(equipementController));
-  app.delete('/equipements/:id', equipementController.archive.bind(equipementController));
-  app.put('/equipements/:id/status', equipementController.declarerStatus.bind(equipementController));
+app.post('/equipements',upload.array('images'),equipementController.create.bind(equipementController));
+app.get('/equipements',equipementController.getAll.bind(equipementController));
+app.get('/equipements/:id',equipementController.getById.bind(equipementController));
+app.put('/equipements/:id',upload.array('images'),equipementController.update.bind(equipementController));
+app.delete('/equipements/:id',equipementController.archive.bind(equipementController));
+app.put('/equipements/:id/archive',equipementController.archive.bind(equipementController));
+app.put('/equipements/:id/declarerEtat',equipementController.declarerEtat.bind(equipementController));
+app.put('/equipements/:id/declarerStatus',equipementController.declarerStatus.bind(equipementController));
+app.post('/equipements/affecter', equipementController.affecter.bind(equipementController));
+app.post('/equipements/transferer',equipementController.transferer.bind(equipementController));
+app.post('/equipements/envoyerReparation',equipementController.envoyerEnReparation.bind(equipementController));
+app.post('/equipements/retourReparation',equipementController.retourDeReparation.bind(equipementController));
+app.post('/equipements/confirmerReception',equipementController.confirmerReception.bind(equipementController));
+app.get('/equipements/:id/mouvements',equipementController.getMouvements.bind(equipementController));
 
+// ======================= MOUVEMENTS =====================
+app.post('/mouvements',mouvementController.create.bind(mouvementController));
+app.put('/mouvements/:id/confirmer',mouvementController.confirmer.bind(mouvementController));
+app.put('/mouvements/:id/rejeter',mouvementController.rejeter.bind(mouvementController));
+app.get('/mouvements',mouvementController.getAll.bind(mouvementController));
+app.get('/mouvements/equipement/:equipementId', mouvementController.getByEquipement.bind(mouvementController));
 
-  // ======================= AFFECTATIONS =====================
-  app.post('/affectations', affectationController.affecter.bind(affectationController));
-  app.put('/affectations/:id/status', affectationController.changerStatus.bind(affectationController));
-  app.put('/affectations/:id/retrait', affectationController.retirer.bind(affectationController));
-  app.get('/affectations/en-cours', affectationController.enCours.bind(affectationController));
-  app.get('/affectations/historique', affectationController.historique.bind(affectationController));
-  app.get('/affectations/historique/pdf', affectationController.historiquePDF.bind(affectationController));
-
-  
   // ======================= CREDITS =====================
   app.get('/credits', creditController.getAll.bind(creditController));
   app.get('/credits/:id', creditController.getOne.bind(creditController));
@@ -183,4 +189,9 @@ export default (app: Express): void => {
   app.delete('/actions/:id', actionCreditController.delete.bind(actionCreditController));
   app.put('/actions/:id/archive', actionCreditController.archive.bind(actionCreditController));
   
+  // ======================= NOTIFICATIONS =====================
+  app.get('/notifications/user/:userId', notificationController.getMyNotifications.bind(notificationController));
+  app.get('/notifications/user/:userId/unread/count', notificationController.getUnreadCount.bind(notificationController));
+  app.put('/notifications/:id/mark-as-read', notificationController.markAsRead.bind(notificationController));
+
 }
