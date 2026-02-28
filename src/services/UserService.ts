@@ -7,33 +7,62 @@ import { generateCodeIdentifiant } from "../utils/generateCodeIdentifiant";
 export default class UserService {
 
   // Récupérer tous les utilisateurs avec pagination et filtres
-    public async getAllUsers(
-    page = 1,
-    limit = 10,
-    filters?: { nom?: string; prenom?: string; email?: string; username?: string; roleId?: number },
-    currentUser?: any // <-- nouvel argument
-    ): Promise<{ data: User[]; total: number }> {
-    const skip = (page - 1) * limit;
-    const where: any = {};
+   // UserService.ts
+public async getAllUsers(
+  page = 1,
+  limit = 10,
+  filters?: {
+    nom?: string;
+    prenom?: string;
+    email?: string;
+    username?: string;
+    roleId?: number;
+    search?: string; // recherche globale
+  },
+  currentUser?: { id: number; agenceId: number; roles: string[] }
+) {
+  // 🔹 Pagination sécurisée
+  page = Math.max(1, page);
+  limit = Math.min(Math.max(1, limit), 100);
+  const skip = (page - 1) * limit;
 
-    if (filters) {
-    if (filters.nom) where.nom = { contains: filters.nom, mode: 'insensitive' };
-    if (filters.prenom) where.prenom = { contains: filters.prenom, mode: 'insensitive' };
-    if (filters.email) where.email = { contains: filters.email, mode: 'insensitive' };
-    if (filters.username) where.username = { contains: filters.username, mode: 'insensitive' };
-    if (filters.roleId) where.roles = { some: { roleId: filters.roleId } };
-    }
+  // 🔹 Construction du filtre Prisma
+  const andConditions: any[] = [];
 
-    // Filtrage par agence si l'utilisateur n'est pas admin
-    if (currentUser && !currentUser.roles.includes("ADMIN")) {
-    where.agenceId = currentUser.agenceId;
-    }
+  // 🔹 Filtrage par champs spécifiques
+  if (filters?.nom) andConditions.push({ nom: { contains: filters.nom, case: "insensitive" } });
+  if (filters?.prenom) andConditions.push({ prenom: { contains: filters.prenom, case: "insensitive" } });
+  if (filters?.email) andConditions.push({ email: { contains: filters.email, case: "insensitive" } });
+  if (filters?.username) andConditions.push({ username: { contains: filters.username, case: "insensitive" } });
+  if (filters?.roleId) andConditions.push({ roles: { some: { roleId: filters.roleId } } });
 
-    const [data, total] = await Promise.all([
+  // 🔹 Recherche globale (n’importe quel champ)
+  if (filters?.search) {
+    andConditions.push({
+      OR: [
+        { nom: { contains: filters.search, case: "insensitive" } },
+        { prenom: { contains: filters.search, case: "insensitive" } },
+        { email: { contains: filters.search, case: "insensitive" } },
+        { username: { contains: filters.search, case: "insensitive" } },
+      ],
+    });
+  }
+
+  // 🔹 Limiter aux utilisateurs de la même agence si non-ADMIN
+  if (currentUser && !currentUser.roles.includes("ADMIN")) {
+    andConditions.push({ agenceId: currentUser.agenceId });
+  }
+
+  // 🔹 Préparer le where final
+  const where = andConditions.length > 0 ? { AND: andConditions } : {};
+
+  // 🔹 Récupération des données et total
+  const [data, total] = await Promise.all([
     prismaClient.user.findMany({
       skip,
       take: limit,
       where,
+      orderBy: { createdAt: "desc" },
       include: {
         roles: { include: { role: true } },
         agence: true,
@@ -42,10 +71,20 @@ export default class UserService {
       },
     }),
     prismaClient.user.count({ where }),
-    ]);
+  ]);
 
-    return { data, total };
-  }
+  return {
+    data,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+
 
   // Récupérer un utilisateur par ID
   public async getUserById(id: number): Promise<User | null> {

@@ -41,22 +41,64 @@ export default class MouvementController {
   }
 
   async getAll(req: Request, res: Response) {
-    try {
-      const filter = req.query || {};
-      const mouvements = await mouvementService.getAllMouvements(filter);
-      res.json(mouvements);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
+  try {
+    let page = Number(req.query.page) || 1;
+    let limit = Number(req.query.limit) || 10;
+
+    page = Math.max(1, page);
+    limit = Math.min(Math.max(1, limit), 100);
+
+    const filters = {
+      type: req.query.type as string | undefined,
+      equipementId: req.query.equipementId
+        ? Number(req.query.equipementId)
+        : undefined,
+      confirme:
+        req.query.confirme !== undefined
+          ? req.query.confirme === "true"
+          : undefined,
+      search: req.query.search as string | undefined,
+    };
+
+    const result = await mouvementService.getAllMouvements(
+      page,
+      limit,
+      filters
+    );
+
+    res.json({
+      data: result.data,
+      meta: result.meta,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
+}
+
 
   async getByEquipement(req: Request, res: Response) {
-    try {
-      const equipementId = Number(req.params.equipementId);
-      const mouvements = await mouvementService.getAllMouvements({ equipementId });
-      res.json(mouvements);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
+  try {
+    const equipementId = Number(req.params.equipementId);
+
+    let page = Number(req.query.page) || 1;
+    let limit = Number(req.query.limit) || 10;
+
+    page = Math.max(1, page);
+    limit = Math.min(Math.max(1, limit), 100);
+
+    const result = await mouvementService.getAllMouvements(
+      page,
+      limit,
+      { equipementId }
+    );
+
+    res.json({
+      data: result.data,
+      meta: result.meta,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
+}
+
 }

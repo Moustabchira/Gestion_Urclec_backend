@@ -18,21 +18,41 @@ export default class DemandeController {
     }
   }
 
-  public async getAll(req: Request, res: Response): Promise<Response> {
-    try {
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 10;
-      const filters = {
-        type: req.query.type as string,
-        userId: req.query.userId ? Number(req.query.userId) : undefined,
-        status: req.query.status as string,
-      };
-      const { data, total } = await demandeService.getAllDemandes(page, limit, filters);
-      return res.status(status.HTTP_STATUS_OK).json({ data, total, page, limit });
-    } catch (error: any) {
-      return res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error.message });
-    }
+ public async getAll(req: Request, res: Response): Promise<Response> {
+  try {
+    // 1️⃣ Sécuriser page et limit
+    const page = Number(req.query.page) > 0 ? Number(req.query.page) : 1;
+    const limit = Number(req.query.limit) > 0 ? Number(req.query.limit) : 10;
+
+    // 2️⃣ Construire les filtres proprement (éviter undefined)
+    const filters = {
+      type: req.query.type ? String(req.query.type) : undefined,
+      userId: req.query.userId ? Number(req.query.userId) : undefined,
+      status: req.query.status ? String(req.query.status) : undefined,
+    };
+
+    // 3️⃣ Appel du service
+    const { data, total, totalPages } =
+      await demandeService.getAllDemandes(page, limit, filters);
+
+    // 4️⃣ Réponse standardisée
+    return res.status(status.HTTP_STATUS_OK).json({
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        lastPage: totalPages,
+      },
+    });
+
+  } catch (error: any) {
+    console.error("Erreur getAll demandes :", error);
+    return res
+      .status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR)
+      .json({ message: error.message });
   }
+}
 
   public async getOne(req: Request, res: Response): Promise<Response> {
     const id = Number(req.params.id);

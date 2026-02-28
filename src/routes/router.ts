@@ -117,11 +117,11 @@ export default (app: Express): void => {
   app.delete('/agences/:id', agenceController.deleteAgence.bind(agenceController));
 
   // ======================= POSTES ========================
-  app.get('/postes', posteController.getAll.bind(posteController));
-  app.get('/postes/:id', posteController.getById.bind(posteController));
-  app.post('/postes', posteController.create.bind(posteController));
-  app.put('/postes/:id', posteController.update.bind(posteController));
-  app.delete('/postes/:id', posteController.delete.bind(posteController));
+  app.get('/postes', posteController.getAllPostes.bind(posteController));
+  app.get('/postes/:id', posteController.getPosteById.bind(posteController));
+  app.post('/postes', posteController.createPoste.bind(posteController));
+  app.put('/postes/:id', posteController.updatePoste.bind(posteController));
+  app.delete('/postes/:id', posteController.deletePoste.bind(posteController));
 
   // ======================= CONGES ========================
   app.get('/conges', congeController.getAll.bind(congeController));
@@ -175,19 +175,23 @@ app.put('/mouvements/:id/rejeter',mouvementController.rejeter.bind(mouvementCont
 app.get('/mouvements',mouvementController.getAll.bind(mouvementController));
 app.get('/mouvements/equipement/:equipementId', mouvementController.getByEquipement.bind(mouvementController));
 
-  // ======================= CREDITS =====================
+  // ======================= CREDITS =======================
   app.get('/credits', creditController.getAll.bind(creditController));
   app.get('/credits/:id', creditController.getOne.bind(creditController));
   app.post('/credits', creditController.create.bind(creditController));
   app.put('/credits/:id', creditController.update.bind(creditController));
   app.delete('/credits/:id', creditController.archive.bind(creditController));
+  app.get('/credits/impayes', creditController.getImpayes.bind(creditController));
+  app.get('/credits/impayes/agent/:agentId', creditController.getImpayesByAgent.bind(creditController));
 
-  // ======================= ACTIONS DE CREDITS =====================
+  // ======================= ACTIONS DE CRÉDIT =====================
+  app.get('/actions', actionCreditController.getAll.bind(actionCreditController));
   app.get('/credits/:creditId/actions', actionCreditController.getByCredit.bind(actionCreditController));
-  app.post('/actions', actionCreditController.create.bind(actionCreditController));
+  app.post('/credits/:creditId/actions', actionCreditController.create.bind(actionCreditController));
   app.put('/actions/:id', actionCreditController.update.bind(actionCreditController));
-  app.delete('/actions/:id', actionCreditController.delete.bind(actionCreditController));
-  app.put('/actions/:id/archive', actionCreditController.archive.bind(actionCreditController));
+  app.delete('/actions/:id', actionCreditController.archive.bind(actionCreditController));
+  app.delete('/actions/:id/delete', actionCreditController.delete.bind(actionCreditController));
+
   
   // ======================= NOTIFICATIONS =====================
   app.get('/notifications/user/:userId', notificationController.getMyNotifications.bind(notificationController));

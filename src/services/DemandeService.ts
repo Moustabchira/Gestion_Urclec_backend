@@ -12,35 +12,52 @@ export default class DemandeService {
 
   // ===================== Récupérer toutes les demandes =====================
   public async getAllDemandes(
-    page = 1,
-    limit = 10,
-    filters?: FilterDemande
-  ): Promise<{ data: Demande[]; total: number }> {
-    const skip = (page - 1) * limit;
-    const where: any = { archive: false };
-    if (filters) {
-      if (filters.type) where.type = filters.type;
-      if (filters.userId) where.userId = filters.userId;
-      if (filters.status) where.status = filters.status;
-    }
-    const [data, total] = await Promise.all([
-      prisma.demande.findMany({
-        skip,
-        take: limit,
-        where,
-        include: { 
-          conge: true, 
-          absence: true, 
-          demandePermission: true, 
-          decisions: { include: { user: true } },
-          user: { include: { chef: true, roles: { include: { role: true } }, poste: true, agence: true } } 
-        },
-      }),
-      prisma.demande.count({ where }),
-    ]);
-    return { data, total };
+  page = 1,
+  limit = 10,
+  filters?: FilterDemande
+): Promise<{ data: Demande[]; total: number; totalPages: number }> {
+
+  page = Number(page) > 0 ? Number(page) : 1;
+  limit = Number(limit) > 0 ? Number(limit) : 10;
+
+  const skip = (page - 1) * limit;
+
+  const where: any = { archive: false };
+
+  if (filters) {
+    if (filters.type) where.type = filters.type;
+    if (filters.userId) where.userId = filters.userId;
+    if (filters.status) where.status = filters.status;
   }
 
+  const [data, total] = await Promise.all([
+    prisma.demande.findMany({
+      skip,
+      take: limit,
+      where,
+      orderBy: { createdAt: "desc" }, // important pour pagination stable
+      include: {
+        conge: true,
+        absence: true,
+        demandePermission: true,
+        decisions: { include: { user: true } },
+        user: {
+          include: {
+            chef: true,
+            roles: { include: { role: true } },
+            poste: true,
+            agence: true,
+          },
+        },
+      },
+    }),
+    prisma.demande.count({ where }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return { data, total, totalPages };
+}
   // ===================== Récupérer une demande par ID =====================
   public async getDemandeById(id: number): Promise<Demande | null> {
     if (!Number.isInteger(id) || id <= 0) throw new Error("ID invalide");

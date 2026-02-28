@@ -10,26 +10,45 @@ export interface UpdatePointServiceData {
 export default class PointService {
 
   // 🔹 Récupérer tous les points de service
-  public async getAllPoints(filters?: { nom?: string; agenceId?: number }) {
-    const where: any = {};
+  public async getAllPoints(params: {
+  nom?: string;
+  agenceId?: number;
+  page: number;
+  limit: number;
+}) {
+  const { nom, agenceId, page, limit } = params;
 
-    if (filters?.nom) {
-      where.nom = { contains: filters.nom, mode: "insensitive" };
-    }
+  const where: any = {};
 
-    if (filters?.agenceId) {
-      where.agenceId = filters.agenceId;
-    }
-
-    return prismaClient.pointDeService.findMany({
-      where,
-      include: {
-        agence: true,
-        mouvementsSource: true,
-        mouvementsDest: true,
-      },
-    });
+  if (nom) {
+    where.nom = { contains: nom, mode: "insensitive" };
   }
+
+  if (agenceId) {
+    where.agenceId = agenceId;
+  }
+
+  const total = await prismaClient.pointDeService.count({ where });
+
+  const points = await prismaClient.pointDeService.findMany({
+    where,
+    skip: (page - 1) * limit,
+    take: limit,
+    orderBy: { createdAt: "desc" },
+    include: {
+      agence: true,
+      mouvementsSource: true,
+      mouvementsDest: true,
+    },
+  });
+
+  return {
+    data: points,
+    total,
+    page,
+    lastPage: Math.ceil(total / limit),
+  };
+}
 
   // 🔹 Récupérer un point de service par ID
   public async getPointById(id: number) {

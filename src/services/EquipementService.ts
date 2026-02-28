@@ -17,44 +17,111 @@ export default class EquipementService {
     });
   }
 
-  async getAllEquipements(filter?: {
+  async getAllEquipements(
+  page: number = 1,
+  limit: number = 10,
+  filter?: {
     etat?: string;
     status?: string;
     agenceId?: number;
     responsableId?: number;
-  }) {
-    const where: any = { archive: false };
+  }
+) {
+  const skip = (page - 1) * limit;
 
-    if (filter?.etat) where.etat = filter.etat;
-    if (filter?.status) where.status = filter.status;
-    if (filter?.agenceId) where.agenceActuelleId = filter.agenceId;
-    if (filter?.responsableId) where.responsableActuelId = filter.responsableId;
+  const where: any = { archive: false };
 
-    const list = await prismaClient.equipement.findMany({
+  if (filter?.etat) where.etat = filter.etat;
+  if (filter?.status) where.status = filter.status;
+  if (filter?.agenceId) where.agenceActuelleId = filter.agenceId;
+  if (filter?.responsableId) where.responsableActuelId = filter.responsableId;
+
+  const [equipements, total] = await Promise.all([
+    prismaClient.equipement.findMany({
       where,
+      skip,
+      take: limit,
       orderBy: { createdAt: "desc" },
       include: {
         responsableActuel: true,
         pointServiceActuel: true,
         agenceActuelle: true,
       },
-    });
+    }),
+    prismaClient.equipement.count({ where }),
+  ]);
 
-    return list.map(eq => ({
+  return {
+    data: equipements.map(eq => ({
       ...eq,
       images: eq.images ? JSON.parse(eq.images) : [],
-    }));
-  }
+    })),
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
+}
 
 
-  async getEquipementById(id: number) {
-    const eq = await prismaClient.equipement.findUnique({
-      where: { id },
-      include: { mouvements: true },
-    });
-    if (!eq) return null;
-    return { ...eq, images: eq.images ? JSON.parse(eq.images) : [] };
-  }
+async getEquipementById(id: number) {
+  const eq = await prismaClient.equipement.findUnique({
+    where: { id },
+    include: {
+      responsableActuel: {
+        include: {
+          poste: true,
+          agence: true,
+          roles: {
+            include: { role: true },
+          },
+          chef: true,
+        },
+      },
+
+      pointServiceActuel: {
+        include: {
+          agence: true,
+        },
+      },
+
+      agenceActuelle: true,
+
+      mouvements: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          initiateur: {
+            include: {
+              agence: true,
+              poste: true,
+            },
+          },
+          responsableDestination: {
+            include: {
+              agence: true,
+              poste: true,
+            },
+          },
+          agenceSource: true,
+          agenceDestination: true,
+          pointServiceSource: true,
+          pointServiceDestination: true,
+        },
+      },
+    },
+  });
+
+  if (!eq) return null;
+
+  return {
+    ...eq,
+    images: Array.isArray(eq.images)
+      ? eq.images
+      : eq.images
+        ? JSON.parse(eq.images)
+        : [],
+  };
+}
+
 
   async updateEquipement(id: number, data: any) {
     const validated = updateEquipementSchema.parse(data);
@@ -79,7 +146,6 @@ export default class EquipementService {
     const eq = await prismaClient.equipement.findUnique({ where: { id } });
     if (!eq) throw new Error("Équipement introuvable");
 
-    // ❌ Interdictions
     if (eq.etat === "EN_REPARATION" && etat === "EN_TRANSIT") {
       throw new Error("Impossible : équipement en réparation");
     }
@@ -148,7 +214,7 @@ export default class EquipementService {
           responsableActuelId: data.employeId,
           pointServiceActuelId: data.pointServiceDestId ?? null,
         }
-      });
+    });
 
     // Notification et mail
     await this.notifyUser(
@@ -173,17 +239,9 @@ export default class EquipementService {
     pointServiceDestId?: number;
     responsableDestinationId?: number;
   }) {
-
-    const equipement = await prismaClient.equipement.findUnique({
-      where: { id: data.equipementId },
-    });
-
+    const equipement = await prismaClient.equipement.findUnique({ where: { id: data.equipementId } });
     if (!equipement) throw new Error("Équipement introuvable");
-
-   if (!["FONCTIONNEL"].includes(equipement.etat)) {
-      throw new Error("Transfert impossible dans cet état");
-    }
-
+    if (equipement.etat !== "FONCTIONNEL") throw new Error("Transfert impossible dans cet état");
 
     const mouvement = await this.mouvementService.createMouvement({
       type: "TRANSFERT",
@@ -198,8 +256,18 @@ export default class EquipementService {
       etatApres: "EN_TRANSIT",
     });
 
+    // 🔹 Mettre en transit
     await this.declarerEtatEquipement(data.equipementId, "EN_TRANSIT");
+    // Mettre l’équipement en transit
+    await prismaClient.equipement.update({
+        where: { id: data.equipementId },
+        data: {
+          responsableActuelId: data.responsableDestinationId,
+          pointServiceActuelId: data.pointServiceDestId ?? null,
+        }
+    });
 
+    // 🔹 Notification destinataire
     if (data.responsableDestinationId) {
       await this.notifyUser(
         data.responsableDestinationId,
@@ -213,6 +281,7 @@ export default class EquipementService {
 
     return mouvement;
   }
+
 
 
   // ----------------- Envoi en réparation -----------------
@@ -436,7 +505,7 @@ async confirmerReception(mouvementId: number, confirmeParId: number) {
     mouvement.etatApres === "FONCTIONNEL" ? "DISPONIBLE" : "INDISPONIBLE";
 
   updateData.responsableActuelId = null;
-}
+  }
 
 
   await prismaClient.equipement.update({

@@ -25,31 +25,48 @@ export default class EquipementController {
   }
 
   async getAll(req: Request, res: Response) {
-    try {
-      const filter: any = {};
-      if (req.query.etat) filter.etat = String(req.query.etat);
-      if (req.query.status) filter.status = String(req.query.status);
-      if (req.query.agenceId) filter.agenceId = Number(req.query.agenceId);
-      if (req.query.responsableId) filter.responsableId = Number(req.query.responsableId);
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
 
-      const equipements = await equipementService.getAllEquipements(filter);
-      res.json(equipements);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
+    const filter: any = {};
+
+    if (req.query.etat) filter.etat = String(req.query.etat);
+    if (req.query.status) filter.status = String(req.query.status);
+    if (req.query.agenceId) filter.agenceId = Number(req.query.agenceId);
+    if (req.query.responsableId) filter.responsableId = Number(req.query.responsableId);
+
+    const result = await equipementService.getAllEquipements(
+      page,
+      limit,
+      filter
+    );
+
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
+}
 
 
   async getById(req: Request, res: Response) {
     try {
       const id = Number(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID invalide" });
+      }
+
       const equipement = await equipementService.getEquipementById(id);
-      if (!equipement) return res.status(404).json({ error: "Équipement non trouvé" });
+      if (!equipement) {
+        return res.status(404).json({ error: "Équipement non trouvé" });
+      }
+
       res.json(equipement);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   }
+
 
   async update(req: Request, res: Response) {
     try {

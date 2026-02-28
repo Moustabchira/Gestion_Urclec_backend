@@ -1,3 +1,10 @@
+// ---------- Enums ----------
+export type EtatEquipement = "FONCTIONNEL" | "EN_PANNE" | "EN_REPARATION" | "HORS_SERVICE" | "EN_TRANSIT";
+export type StatusEquipement = "DISPONIBLE" | "ASSIGNE";
+export type TypeMouvement = "AFFECTATION" | "TRANSFERT" | "REPARATION" | "RETRAIT" | "RETROUVE" | "RETOUR_REPARATION";
+export type StatutMouvement = "EN_ATTENTE" | "CONFIRME" | "REJETE" | "EN_TRANSIT" | "EN_REPARATION" | "RETIRE" | "BON" | "ABIME" | "PERDU";
+export type StatutEvenement = "EN_ATTENTE" | "VALIDE" | "REJETE" | "PUBLIE";
+
 // ---------- Agence ----------
 export interface Agence {
   id: number;
@@ -5,9 +12,10 @@ export interface Agence {
   code_agence: string;
   ville: string;
   users?: User[];
-  pointServices?: PointDeService[];
+  pointService?: PointDeService[];
   mouvementsSource?: MouvementEquipement[];
   mouvementsDestination?: MouvementEquipement[];
+  equipementsActuels?: Equipement[];
   createdAt: Date;
   updatedAt: Date;
   archive: boolean;
@@ -32,7 +40,8 @@ export interface PointDeService {
   agenceId: number;
   agence?: Agence;
   mouvementsSource?: MouvementEquipement[];
-  mouvementsDestination?: MouvementEquipement[];
+  mouvementsDest?: MouvementEquipement[];
+  equipementsActuels?: Equipement[];
   createdAt: Date;
   updatedAt: Date;
   archive: boolean;
@@ -61,16 +70,18 @@ export interface User {
 
   actionCredits?: ActionCredit[];
   creditsBeneficiaire?: Credit[];
+  creditAgent?: Credit[];
   decisions?: Decision[];
   roles?: UserRole[];
   demandes?: Demande[];
   demandesAValider?: Demande[];
   evenementsCrees?: Evenement[];
   evenementsPublies?: Evenement[];
-  equipementsPossedes?: Equipement[];
+  equipementsActuels?: Equipement[];
   mouvementsInitie?: MouvementEquipement[];
   mouvementsConfirmes?: MouvementEquipement[];
-  mouvementsResponsable?: MouvementEquipement[];
+  mouvementsResponsableSource?: MouvementEquipement[];
+  mouvementsResponsableDest?: MouvementEquipement[];
 
   createdAt: Date;
   updatedAt: Date;
@@ -78,7 +89,7 @@ export interface User {
   archivedAt?: Date | null;
 }
 
-// ---------- Rôles et Permissions ----------
+// ---------- Role ----------
 export interface Role {
   id: number;
   nom: string;
@@ -91,6 +102,7 @@ export interface Role {
   archivedAt?: Date | null;
 }
 
+// ---------- UserRole ----------
 export interface UserRole {
   userId: number;
   roleId: number;
@@ -101,6 +113,7 @@ export interface UserRole {
   role?: Role;
 }
 
+// ---------- Permission ----------
 export interface Permission {
   id: number;
   nom: string;
@@ -112,6 +125,7 @@ export interface Permission {
   archivedAt?: Date | null;
 }
 
+// ---------- RolePermission ----------
 export interface RolePermission {
   id: number;
   roleId: number;
@@ -123,7 +137,7 @@ export interface RolePermission {
   archivedAt?: Date | null;
 }
 
-// ---------- Demandes ----------
+// ---------- Demande ----------
 export interface Demande {
   id: number;
   type: string;
@@ -146,6 +160,7 @@ export interface Demande {
   archivedAt?: Date | null;
 }
 
+// ---------- Conge ----------
 export interface Conge {
   id: number;
   nbJours: number;
@@ -157,6 +172,7 @@ export interface Conge {
   archivedAt?: Date | null;
 }
 
+// ---------- Absence ----------
 export interface Absence {
   id: number;
   justification: string;
@@ -168,6 +184,7 @@ export interface Absence {
   archivedAt?: Date | null;
 }
 
+// ---------- DemandePermission ----------
 export interface DemandePermission {
   id: number;
   duree: string;
@@ -179,7 +196,7 @@ export interface DemandePermission {
   archivedAt?: Date | null;
 }
 
-// ---------- Décision ----------
+// ---------- Decision ----------
 export interface Decision {
   id: number;
   status: string;
@@ -199,10 +216,10 @@ export interface Equipement {
   id: number;
   nom: string;
   modele?: string | null;
-  images?: string[]; // tableau de string, JSON parse
+  images?: string[]; // JSON parse/stringify
   dateAcquisition: Date;
-  etat: "ACTIF" | "HORS_SERVICE" | "EN_PANNE" | "EN_TRANSIT" | "EN_REPARATION" | "DISPONIBLE" | "ASSIGNE";
-  status: "DISPONIBLE" | "ASSIGNE";
+  etat: EtatEquipement;
+  status: StatusEquipement;
   responsableActuelId?: number | null;
   responsableActuel?: User | null;
   agenceActuelleId?: number | null;
@@ -219,8 +236,8 @@ export interface Equipement {
 // ---------- MouvementEquipement ----------
 export interface MouvementEquipement {
   id: number;
-  type: "AFFECTATION" | "TRANSFERT" | "REPARATION" | "RETRAIT" | "RETROUVE"| "RETOUR_REPARATION";
-  statut: "EN_ATTENTE" | "CONFIRME" | "REJETE" | "EN_TRANSIT" | "EN_REPARATION" | "RETIRE" | "BON" | "ABIME" | "PERDU";
+  type: TypeMouvement;
+  statut: StatutMouvement;
   commentaire?: string | null;
   equipementId: number;
   equipement?: Equipement;
@@ -234,13 +251,18 @@ export interface MouvementEquipement {
   pointServiceSource?: PointDeService;
   pointServiceDestinationId?: number | null;
   pointServiceDestination?: PointDeService;
+  responsableSourceId?: number | null;
+  responsableSource?: User;
   responsableDestinationId?: number | null;
   responsableDestination?: User;
+  confirme?: boolean;
   confirmeParId?: number | null;
   confirmePar?: User;
-  confirme?: boolean;
   dateConfirmation?: Date | null;
   createdAt: Date;
+  updatedAt: Date;
+  archive: boolean;
+  archivedAt?: Date | null;
 }
 
 // ---------- Evenement ----------
@@ -251,31 +273,11 @@ export interface Evenement {
   dateDebut: Date;
   dateFin: Date;
   images?: string[]; // JSON parse
-  statut: "EN_ATTENTE" | "VALIDE" | "REJETE" | "PUBLIE";
+  statut: StatutEvenement;
   userId: number;
   user?: User;
-  validatedBy?: number | null;
-  validateur?: User | null;
   publishedBy?: number | null;
   publieur?: User | null;
-  createdAt: Date;
-  updatedAt: Date;
-  archive: boolean;
-  archivedAt?: Date | null;
-}
-
-// ---------- ActionCredit ----------
-export interface ActionCredit {
-  id: number;
-  type: string;
-  commentaire?: string | null;
-  date: Date;
-  creditId: number;
-  credit?: Credit;
-  agentId: number;
-  agent?: User;
-  latitude?: number | null;
-  longitude?: number | null;
   createdAt: Date;
   updatedAt: Date;
   archive: boolean;
@@ -285,20 +287,40 @@ export interface ActionCredit {
 // ---------- Credit ----------
 export interface Credit {
   id: number;
-  beneficiaireId: number;
-  beneficiaire?: User;
+  reference: string;
   montant: number;
-  montantRembourse?: number;
-  tauxInteret?: number | null;
+  montantRembourse: number;
+  tauxInteret: number;
   dateDebut: Date;
   dateFin: Date;
-  status?: string | null;
+  status: string;
+  beneficiaireId: number;
+  beneficiaire?: User;
+  agentId?: number | null;
+  agent?: User | null;
   actions?: ActionCredit[];
   histories?: CreditHistory[];
   createdAt: Date;
   updatedAt: Date;
   archive: boolean;
   archivedAt?: Date | null;
+}
+
+// ---------- ActionCredit ----------
+export interface ActionCredit {
+  id: number;
+  creditId: number;
+  credit?: Credit;
+  agentId?: number | null;
+  agent?: User | null;
+  type: string;
+  commentaire?: string | null;
+  date: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  archive: boolean;
+  archivedAt?: Date | null;
+  notifications?: Notification[];
 }
 
 // ---------- CreditHistory ----------
@@ -309,13 +331,25 @@ export interface CreditHistory {
   field: string;
   oldValue?: string | null;
   newValue?: string | null;
-  changedAt: Date;
+  updatedAt: Date;
 }
 
-// ---------- AuthPayload ----------
-export interface AuthPayload {
+// ---------- Notification ----------
+export interface Notification {
+  id: number;
+  titre: string;
+  message: string;
+  type: string;
+  canal: string;
+  lu: boolean;
+  luAt?: Date | null;
   userId: number;
-  username: string;
-  email: string;
-  roles: string[];
+  user?: User;
+  equipementId?: number | null;
+  equipement?: Equipement | null;
+  mouvementId?: number | null;
+  mouvement?: MouvementEquipement | null;
+  actionCreditId?: number | null;
+  actionCredit?: ActionCredit | null;
+  createdAt: Date;
 }

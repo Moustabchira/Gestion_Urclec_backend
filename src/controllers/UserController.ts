@@ -12,32 +12,45 @@ export default class UserController {
   }
 
   // GET /users
-  public async getAllUsers(req: any, res: Response) {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+  // GET /users
+// GET /users
+public async getAllUsers(req: any, res: Response) {
+  try {
+    // 🔹 Pagination
+    let page = Number(req.query.page) || 1;
+    let limit = Number(req.query.limit) || 10;
+    page = Math.max(1, page);
+    limit = Math.min(Math.max(1, limit), 100);
 
+    // 🔹 Filtrage par champs spécifiques + recherche globale
     const filters = {
-      nom: req.query.nom as string,
-      prenom: req.query.prenom as string,
-      email: req.query.email as string,
-      username: req.query.username as string,
-      roleId: req.query.roleId ? parseInt(req.query.roleId as string) : undefined,
+      nom: req.query.nom as string | undefined,
+      prenom: req.query.prenom as string | undefined,
+      email: req.query.email as string | undefined,
+      username: req.query.username as string | undefined,
+      roleId: req.query.roleId ? Number(req.query.roleId) : undefined,
+      search: req.query.search as string | undefined, // nouveau filtre global
     };
 
-    try {
-      const result = await userService.getAllUsers(page, limit, filters, req.user);
-      res.status(status.HTTP_STATUS_OK).json({
-        data: result.data,
-        meta: {
-          total: result.total,
-          page,
-          lastPage: Math.ceil(result.total / limit)
-        }
-      });
-    } catch (error) {
-      res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
-    }
+    const result = await userService.getAllUsers(
+      page,
+      limit,
+      filters,
+      req.user
+    );
+
+    res.status(status.HTTP_STATUS_OK).json({
+      data: result.data,
+      meta: result.meta,
+    });
+  } catch (error) {
+    res
+      .status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR)
+      .json({ message: error instanceof Error ? error.message : "Erreur inconnue" });
   }
+}
+
+
 
   // GET /users/:id
   public async getUserById(req: Request, res: Response) {

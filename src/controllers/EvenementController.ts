@@ -14,30 +14,35 @@ export default class EvenementController {
   // ------------------------------------------------------------------------------------
   // 🔹 Récupérer tous les événements
   // ------------------------------------------------------------------------------------
-  public async getAllEvenements(req: Request, res: Response): Promise<void> {
-    try {
-      const filters: any = {
-        titre: req.query.titre ? String(req.query.titre) : undefined,
-        description: req.query.description ? String(req.query.description) : undefined,
-        archive: req.query.archive === "true" ? true : req.query.archive === "false" ? false : undefined,
-      };
+public async getAllEvenements(req: Request, res: Response): Promise<void> {
+  try {
+    const filters: any = {
+      titre: req.query.titre ? String(req.query.titre) : undefined,
+      description: req.query.description ? String(req.query.description) : undefined,
+      archive:
+        req.query.archive === "true" ? true :
+        req.query.archive === "false" ? false :
+        undefined,
+    };
 
-      const userRole = String(req.query.userRole || "").toUpperCase();
-
-      // 👉 Si ce n'est pas un DRH, il ne doit voir que PUBLIE
-      if (userRole !== "DRH") {
-        filters.statut = "PUBLIE";
-      }
-
-      const evenements = await evenementService.getEvenements(filters);
-      res.status(status.HTTP_STATUS_OK).json(evenements);
-
-    } catch (error) {
-      res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
-        message: error instanceof Error ? error.message : "Erreur inconnue",
-      });
+    const userRole = String(req.query.userRole || "").toUpperCase();
+    if (userRole !== "DRH") {
+      filters.statut = "PUBLIE";
     }
+
+    // 🔹 Pagination depuis query params
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+
+    const result = await evenementService.getEvenements(filters, page, limit);
+
+    res.status(status.HTTP_STATUS_OK).json(result);
+  } catch (error) {
+    res.status(status.HTTP_STATUS_INTERNAL_SERVER_ERROR).json({
+      message: error instanceof Error ? error.message : "Erreur inconnue",
+    });
   }
+}
 
   // ------------------------------------------------------------------------------------
   // 🔹 Récupérer un événement par ID

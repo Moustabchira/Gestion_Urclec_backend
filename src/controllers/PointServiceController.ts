@@ -7,19 +7,25 @@ const pointService = new PointService();
 export default class PointServiceController {
 
   // 🔹 Récupérer tous
-  public async getAll(req: Request, res: Response) {
-    try {
-      const filters = {
-        nom: req.query.nom as string | undefined,
-        agenceId: req.query.agenceId ? parseInt(req.query.agenceId as string) : undefined,
-      };
+ public async getAll(req: Request, res: Response) {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
 
-      const points = await pointService.getAllPoints(filters);
-      res.json(points);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
+    const result = await pointService.getAllPoints({
+      nom: req.query.nom as string | undefined,
+      agenceId: req.query.agenceId
+        ? parseInt(req.query.agenceId as string)
+        : undefined,
+      page,
+      limit,
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
   }
+}
 
   // 🔹 Récupérer par ID
   public async getById(req: Request, res: Response) {
