@@ -118,60 +118,35 @@ model RolePermission {
   @@unique([roleId, permissionId])
 }
 
+
 model Demande {
-  id                Int                @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
+
   type              String
+
   dateDebut         DateTime
   dateFin           DateTime
   motif             String
-  status            String             @default("EN_ATTENTE")
+
+  status            String    @default("EN_ATTENTE")
   pdfPath           String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+
   userId            Int
-  archive           Boolean            @default(false)
-  archivedAt        DateTime?
   currentApproverId Int?
-  absence           Absence?
-  conge             Conge?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  archive           Boolean   @default(false)
+  archivedAt        DateTime?
+
   decisions         Decision[]
-  currentApprover   User?              @relation("DemandeCurrentApprover", fields: [currentApproverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  user              User               @relation(fields: [userId], references: [id])
-  demandePermission DemandePermission?
+  notifications     Notification[]
+
+  currentApprover   User?  @relation("DemandeCurrentApprover", fields: [currentApproverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user              User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-model Conge {
-  id         Int       @id @default(autoincrement())
-  nbJours    Int
-  demandeId  Int       @unique
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  archive    Boolean   @default(false)
-  archivedAt DateTime?
-  demande    Demande   @relation(fields: [demandeId], references: [id], onUpdate: NoAction)
-}
-
-model Absence {
-  id            Int       @id @default(autoincrement())
-  justification String
-  demandeId     Int       @unique
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  archive       Boolean   @default(false)
-  archivedAt    DateTime?
-  demande       Demande   @relation(fields: [demandeId], references: [id], onUpdate: NoAction)
-}
-
-model DemandePermission {
-  id         Int       @id @default(autoincrement())
-  duree      String
-  demandeId  Int       @unique
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  archive    Boolean   @default(false)
-  archivedAt DateTime?
-  demande    Demande   @relation(fields: [demandeId], references: [id], onUpdate: NoAction)
-}
 
 model Decision {
   id         Int       @id @default(autoincrement())
@@ -180,7 +155,7 @@ model Decision {
   userId     Int
   demandeId  Int
   createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   archive    Boolean   @default(false)
   archivedAt DateTime?
   demande    Demande   @relation(fields: [demandeId], references: [id], onUpdate: NoAction)
@@ -378,16 +353,20 @@ model Notification {
   luAt    DateTime?
 
   userId        Int
+  demandeId     Int?   // 👈 AJOUTER ICI
   equipementId  Int?
   mouvementId   Int?
-  actionCreditId Int?  // <-- nouvelle colonne pour notifier sur une action de crédit
+  actionCreditId Int?
 
   createdAt DateTime @default(now())
 
-  user        User               @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  equipement  Equipement?        @relation("NotificationEquipement", fields: [equipementId], references: [id], onDelete: NoAction)
-  mouvement   MouvementEquipement? @relation("NotificationMouvement", fields: [mouvementId], references: [id], onDelete: NoAction)
-  actionCredit ActionCredit?     @relation(fields: [actionCreditId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user        User @relation("NotificationUser", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  demande     Demande? @relation(fields: [demandeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  equipement  Equipement? @relation("NotificationEquipement", fields: [equipementId], references: [id])
+  mouvement   MouvementEquipement? @relation("NotificationMouvement", fields: [mouvementId], references: [id])
+  actionCredit ActionCredit? @relation(fields: [actionCreditId], references: [id])
 }
 
 

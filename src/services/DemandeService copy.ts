@@ -1,6 +1,7 @@
 import prisma from "../utils/prismaClient";
 import { Demande } from "../types";
 import { createDemandeSchema, updateDemandeSchema } from "../validations/demandeSchema";
+import NotificationService from "./NotificationService";
 
 export interface FilterDemande {
   type?: string;
@@ -8,13 +9,19 @@ export interface FilterDemande {
   status?: string;
 }
 
+const notificationService = new NotificationService();
+
 export default class DemandeService {
 
+  // ===================== Récupérer toutes les demandes =====================
   public async getAllDemandes(
     page = 1,
     limit = 10,
     filters?: FilterDemande
-  ): Promise<{ data: Demande[]; total: number }> {
+  ): Promise<{ data: Demande[]; total: number; totalPages: number }> {
+
+    page = Number(page) > 0 ? Number(page) : 1;
+    limit = Number(limit) > 0 ? Number(limit) : 10;
     const skip = (page - 1) * limit;
 
     const where: any = { archive: false };
@@ -29,26 +36,29 @@ export default class DemandeService {
         skip,
         take: limit,
         where,
-        include: { 
-          conge: true, 
-          absence: true, 
-          demandePermission: true, 
-          decisions: true, 
-          user: { 
-            include: { 
-              chef: true, 
-              roles: { include: { role: true } }, 
-              poste: true, 
-              agence: true
-            } 
+        orderBy: { createdAt: "desc" },
+        include: {
+          conge: true,
+          absence: true,
+          demandePermission: true,
+          decisions: { include: { user: true } },
+          user: {
+            include: {
+              chef: true,
+              roles: { include: { role: true } },
+              poste: true,
+              agence: true,
+            },
+          },
         },
-      }}),
+      }),
       prisma.demande.count({ where }),
     ]);
 
-    return { data, total };
+    return { data, total, totalPages: Math.ceil(total / limit) };
   }
 
+  // ===================== Récupérer une demande par ID =====================
   public async getDemandeById(id: number): Promise<Demande | null> {
     if (!Number.isInteger(id) || id <= 0) throw new Error("ID invalide");
     return prisma.demande.findUnique({
@@ -57,24 +67,17 @@ export default class DemandeService {
         conge: true, 
         absence: true, 
         demandePermission: true, 
-        decisions: true, 
-        user: { 
-          include: { 
-            chef: true,
-            roles: { include: { role: true } }, 
-            poste: true, 
-            agence: true
-          } 
-        } 
+        decisions: { include: { user: true } },
+        user: { include: { chef: true, roles: { include: { role: true } }, poste: true, agence: true } } 
       },
     });
   }
 
-  // ===================== Création d'une demande avec décisions hiérarchiques =====================
-   public async createDemande(data: any): Promise<Demande> {
+  // ===================== Création d'une demande =====================
+  public async createDemande(data: any): Promise<Demande> {
     const validated = createDemandeSchema.parse(data);
 
-    // Récupérer l’employé et son chef (chef obligatoire)
+    // 1️⃣ Récupérer l’employé et son chef
     const employe = await prisma.user.findUnique({
       where: { id: validated.userId },
       include: { chef: true },
@@ -82,7 +85,7 @@ export default class DemandeService {
     if (!employe) throw new Error("Employé non trouvé");
     if (!employe.chef) throw new Error("L'employé n'a pas de chef assigné");
 
-    // Créer la demande
+    // 2️⃣ Créer la demande
     const demande = await prisma.demande.create({
       data: {
         type: validated.type,
@@ -97,41 +100,175 @@ export default class DemandeService {
       },
     });
 
-    // Récupérer DRH et DG
-    let drh = await prisma.user.findFirst({ where: { poste: { nom: "DRH" } } });
-    let dg  = await prisma.user.findFirst({ where: { poste: { nom: "DG" } } });
-
-    // Si DRH ou DG n’existent pas, utiliser l’utilisateur qui crée la demande
-    if (!drh) drh = employe;
-    if (!dg) dg = employe;
-
-    // Créer les décisions hiérarchiques
-    await prisma.decision.createMany({
-      data: [
-        { demandeId: demande.id, userId: employe.chef.id, niveau: "CHEF", status: "EN_ATTENTE" },
-        { demandeId: demande.id, userId: drh.id, niveau: "DRH", status: "EN_ATTENTE" },
-        { demandeId: demande.id, userId: dg.id, niveau: "DG", status: "EN_ATTENTE" },
-      ],
+    // 3️⃣ Créer les décisions
+    const chefDecision = await prisma.decision.create({
+      data: {
+        demandeId: demande.id,
+        userId: employe.chef.id,
+        niveau: "CHEF",
+        status: "EN_ATTENTE",
+      },
     });
 
-    // Retourner la demande complète
+    const drh = await prisma.user.findFirst({
+      where: { roles: { some: { role: { nom: "DRH" } } } },
+    });
+    let drhDecision;
+    if (drh) {
+      drhDecision = await prisma.decision.create({
+        data: { demandeId: demande.id, userId: drh.id, niveau: "DRH", status: "EN_ATTENTE" },
+      });
+    }
+
+    const dg = await prisma.user.findFirst({
+      where: { roles: { some: { role: { nom: "DG" } } } },
+    });
+    let dgDecision;
+    if (dg) {
+      dgDecision = await prisma.decision.create({
+        data: { demandeId: demande.id, userId: dg.id, niveau: "DG", status: "EN_ATTENTE" },
+      });
+    }
+
+    // 4️⃣ Notifications
+    // 🔹 Notifier le CHEF dès la création
+    await notificationService.create({
+      userId: employe.chef.id,
+      titre: "Nouvelle demande à valider",
+      message: `Vous avez une nouvelle demande de ${employe.nom} ${employe.prenom} à valider.`,
+      type: "INFO",
+    });
+
+    // 🔹 Notifier l'employé
+    await notificationService.create({
+      userId: employe.id,
+      titre: "Demande créée",
+      message: "Votre demande a été créée et est en attente de validation par votre CHEF.",
+      type: "SUCCESS",
+    });
+
     return prisma.demande.findUnique({
       where: { id: demande.id },
-      include: { 
-        conge: true, 
-        absence: true, 
-        demandePermission: true, 
-        decisions: true, 
-        user: { include: { chef: true } } 
+      include: {
+        conge: true,
+        absence: true,
+        demandePermission: true,
+        decisions: { include: { user: true } },
+        user: { include: { chef: true } },
       },
     }) as Promise<Demande>;
   }
 
+  // ===================== Prendre une décision =====================
+public async prendreDecision(
+  demandeId: number,
+  userId: number,
+  status: "APPROUVE" | "REFUSE"
+): Promise<Demande> {
+  // 1️⃣ Récupérer la demande avec ses décisions et l'utilisateur
+  const demande = await prisma.demande.findUnique({
+    where: { id: demandeId },
+    include: {
+      user: { include: { chef: true, roles: { include: { role: true } } } },
+      decisions: { include: { user: true } },
+    },
+  });
+  if (!demande) throw new Error("Demande introuvable");
+
+  // 2️⃣ Récupérer l'utilisateur qui prend la décision
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { roles: { include: { role: true } } },
+  });
+  if (!user) throw new Error("Utilisateur introuvable");
+  if (user.id === demande.userId) throw new Error("On ne peut pas valider sa propre demande");
+
+  // 3️⃣ Déterminer le niveau de décision
+  let niveau: "CHEF" | "DRH" | "DG" | null = null;
+  if (
+    demande.user.chefId === user.id &&
+    demande.decisions.some(d => d.niveau === "CHEF" && d.userId === user.id && d.status === "EN_ATTENTE")
+  ) niveau = "CHEF";
+  else if (
+    user.roles.some(r => r.role.nom === "DRH") &&
+    demande.decisions.some(d => d.niveau === "DRH" && d.userId === user.id && d.status === "EN_ATTENTE")
+  ) niveau = "DRH";
+  else if (
+    user.roles.some(r => r.role.nom === "DG") &&
+    demande.decisions.some(d => d.niveau === "DG" && d.userId === user.id && d.status === "EN_ATTENTE")
+  ) niveau = "DG";
+  else throw new Error("Vous n'êtes pas autorisé ou vous avez déjà pris votre décision pour ce niveau");
+
+  const existing = demande.decisions.find(d => d.userId === user.id && d.niveau === niveau);
+  if (!existing) throw new Error(`Aucune décision ne vous est assignée pour le niveau ${niveau}`);
+  if (existing.status !== "EN_ATTENTE") throw new Error(`Vous avez déjà pris votre décision pour le niveau ${niveau}`);
+
+  // 4️⃣ Vérifier l’ordre hiérarchique
+  const chef = demande.decisions.find(d => d.niveau === "CHEF");
+  const drhs = demande.decisions.filter(d => d.niveau === "DRH");
+  if (niveau === "DRH" && chef?.status !== "APPROUVE") throw new Error("Le DRH doit attendre la décision du CHEF");
+  if (niveau === "DG" && drhs.some(d => d.status !== "APPROUVE")) throw new Error("Le DG doit attendre la décision du DRH");
+
+  // 5️⃣ Mettre à jour la décision
+  await prisma.decision.update({ where: { id: existing.id }, data: { status } });
+
+  // 6️⃣ Récupérer DRH et DG pour notifications
+  const drh = await prisma.user.findFirst({ where: { roles: { some: { role: { nom: "DRH" } } } } });
+  const dg = await prisma.user.findFirst({ where: { roles: { some: { role: { nom: "DG" } } } } });
+
+  // 7️⃣ Notifications
+  if (niveau === "CHEF" && status === "APPROUVE" && drh) {
+    await notificationService.create({
+      userId: drh.id,
+      titre: "Demande en attente de votre validation",
+      message: `La demande de ${demande.user.nom} ${demande.user.prenom} a été approuvée par le CHEF.`,
+      type: "INFO",
+    });
+  }
+  if (niveau === "DRH" && status === "APPROUVE" && dg) {
+    await notificationService.create({
+      userId: dg.id,
+      titre: "Demande en attente de votre validation",
+      message: `La demande de ${demande.user.nom} ${demande.user.prenom} a été approuvée par le DRH.`,
+      type: "INFO",
+    });
+  }
+  if (status === "REFUSE") {
+    await notificationService.create({
+      userId: demande.userId,
+      titre: "Demande refusée",
+      message: `Votre demande a été refusée par le ${niveau}.`,
+      type: "ERROR",
+    });
+    await prisma.demande.update({ where: { id: demandeId }, data: { status: "REFUSE" } });
+  } else if (status === "APPROUVE") {
+    // Si tous les DG ont approuvé, la demande est validée
+    const updatedDemande = await prisma.demande.findUnique({
+      where: { id: demandeId },
+      include: { decisions: true },
+    });
+    const dgDecisions = updatedDemande?.decisions.filter(d => d.niveau === "DG");
+    if (dgDecisions && dgDecisions.every(d => d.status === "APPROUVE")) {
+      await prisma.demande.update({ where: { id: demandeId }, data: { status: "APPROUVE" } });
+      await notificationService.create({
+        userId: demande.userId,
+        titre: "Demande approuvée",
+        message: "Votre demande a été approuvée par tous les niveaux hiérarchiques.",
+        type: "SUCCESS",
+      });
+    }
+  }
+
+  // 8️⃣ Retourner la demande mise à jour
+  return prisma.demande.findUnique({
+    where: { id: demandeId },
+    include: { decisions: { include: { user: true } }, user: true },
+  }) as Promise<Demande>;
+}
 
   // ===================== Mise à jour d'une demande =====================
   public async updateDemande(id: number, data: any): Promise<Demande> {
     const validated = updateDemandeSchema.parse(data);
-
     const existing = await prisma.demande.findUnique({
       where: { id },
       include: { conge: true, absence: true, demandePermission: true },
@@ -159,135 +296,22 @@ export default class DemandeService {
         status: validated.status,
         ...relationUpdates,
       },
-      include: { 
-        conge: true, 
-        absence: true, 
-        demandePermission: true, 
-        decisions: true, 
-        user: { include: { chef: true } } 
-      },
+      include: { conge: true, absence: true, demandePermission: true, decisions: true, user: { include: { chef: true } } },
     });
   }
 
-  // ===================== Suppression =====================
+  // ===================== Suppression d'une demande =====================
   public async deleteDemande(id: number): Promise<void> {
-    if (!Number.isInteger(id) || id <= 0) throw new Error("ID invalide");
-
     const demande = await prisma.demande.findUnique({
       where: { id },
       include: { conge: true, absence: true, demandePermission: true, decisions: true },
     });
     if (!demande) throw new Error("Demande non trouvée");
 
-    // --- Supprimer décisions ---
     await prisma.decision.deleteMany({ where: { demandeId: id } });
-
-    // --- Supprimer sous-modèles ---
-    if (demande.conge) {
-      await prisma.conge.delete({ where: { id: demande.conge.id } });
-    }
-    if (demande.absence) {
-      await prisma.absence.delete({ where: { id: demande.absence.id } });
-    }
-    if (demande.demandePermission) {
-      await prisma.demandePermission.delete({ where: { id: demande.demandePermission.id } });
-    }
-
-    // --- Supprimer la demande ---
+    if (demande.conge) await prisma.conge.delete({ where: { id: demande.conge.id } });
+    if (demande.absence) await prisma.absence.delete({ where: { id: demande.absence.id } });
+    if (demande.demandePermission) await prisma.demandePermission.delete({ where: { id: demande.demandePermission.id } });
     await prisma.demande.delete({ where: { id } });
   }
-
-
-
-  // ===================== Prendre une décision =====================
-    public async prendreDecision(
-    demandeId: number,
-    userId: number,
-    status: "APPROUVE" | "REFUSE"
-  ): Promise<Demande> {
-    // 1️⃣ Récupérer la demande et les décisions existantes
-    const demande = await prisma.demande.findUnique({
-      where: { id: demandeId },
-      include: {
-        user: { include: { chef: true, poste: true } },
-        decisions: true,
-        conge: true,
-        absence: true,
-        demandePermission: true,
-      },
-    });
-
-    if (!demande) throw new Error("Demande introuvable");
-
-    // 2️⃣ Récupérer l'utilisateur qui prend la décision
-    const user = await prisma.user.findUnique({ where: { id: userId }, include: { poste: true } });
-    if (!user) throw new Error("Utilisateur introuvable");
-
-    // 3️⃣ Déterminer le niveau de l'utilisateur (CHEF, DRH, DG)
-    let niveau = "";
-    if (demande.user.chefId === user.id) {
-      niveau = "CHEF";
-    } else if (user.poste.nom.toUpperCase() === "DRH") {
-      niveau = "DRH";
-    } else if (user.poste.nom.toUpperCase() === "DG") {
-      niveau = "DG";
-    } else {
-      throw new Error("Utilisateur non autorisé à prendre une décision pour cette demande");
-    }
-
-    // 4️⃣ Vérifier le tour selon le workflow
-    const chefDecision = demande.decisions.find(d => d.niveau === "CHEF");
-    const drhDecision = demande.decisions.find(d => d.niveau === "DRH");
-    const dgDecision = demande.decisions.find(d => d.niveau === "DG");
-
-    switch (niveau) {
-      case "CHEF":
-        if (chefDecision && chefDecision.status !== "EN_ATTENTE") 
-          throw new Error("Le chef a déjà pris sa décision");
-        break;
-      case "DRH":
-        if (!chefDecision || chefDecision.status === "EN_ATTENTE") 
-          throw new Error("Le DRH ne peut décider avant le chef");
-        if (drhDecision && drhDecision.status !== "EN_ATTENTE") 
-          throw new Error("Le DRH a déjà pris sa décision");
-        break;
-      case "DG":
-        if (!drhDecision || drhDecision.status === "EN_ATTENTE") 
-          throw new Error("Le DG ne peut décider avant le DRH");
-        if (dgDecision && dgDecision.status !== "EN_ATTENTE") 
-          throw new Error("Le DG a déjà pris sa décision");
-        break;
-    }
-
-    // 5️⃣ Mettre à jour la décision correspondante (ou créer si jamais)
-    await prisma.decision.updateMany({
-      where: { demandeId, niveau },
-      data: { status, userId },
-    });
-
-    // 6️⃣ Mettre à jour le statut global si DG a décidé
-  if (niveau === "DG") { 
-    await prisma.demande.update({ 
-      where: { id: demandeId }, 
-      data: { status: status === "REFUSE" ? "REFUSE" : "APPROUVE" }, 
-    }); 
-  }
-
-  // 7️⃣ Retourner la demande mise à jour
-  const updatedDemande = await prisma.demande.findUnique({
-    where: { id: demandeId },
-    include: {
-      decisions: { include: { user: true } },
-      user: { include: { chef: true } },
-      conge: true,
-      absence: true,
-      demandePermission: true,
-    },
-  });
-
-  if (!updatedDemande) throw new Error("Erreur lors de la récupération de la demande mise à jour");
-
-  return updatedDemande;
-  }
-
 }

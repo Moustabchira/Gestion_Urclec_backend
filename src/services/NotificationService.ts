@@ -1,10 +1,9 @@
-import prismaClient from "../utils/prismaClient.ts";
+import prisma from "../utils/prismaClient";
+import { getIO } from "../socket";
 
-type NotificationType = "INFO" | "WARNING" | "SUCCESS" | "ERROR";
+export type NotificationType = "INFO" | "WARNING" | "SUCCESS" | "ERROR";
 
 export default class NotificationService {
-
-  // 🔔 Création notification interne
   async create(params: {
     userId: number;
     titre: string;
@@ -13,7 +12,7 @@ export default class NotificationService {
     equipementId?: number;
     mouvementId?: number;
   }) {
-    return prismaClient.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         userId: params.userId,
         titre: params.titre,
@@ -25,38 +24,33 @@ export default class NotificationService {
         lu: false,
       },
     });
+
+    try {
+      const io = getIO();
+      io.to(`user_${params.userId}`).emit("notification", notification);
+    } catch {
+      console.warn("⚠️ Socket non prêt");
+    }
+
+    return notification;
   }
 
-  // 📥 Notifications utilisateur
   async getByUser(userId: number) {
-    return prismaClient.notification.findMany({
+    return prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      include: {
-        equipement: true,
-        mouvement: true,
-      },
+      include: { equipement: true, mouvement: true },
     });
   }
 
-  // 🔔 Notifications non lues (badge)
   async countUnread(userId: number) {
-    return prismaClient.notification.count({
-      where: {
-        userId,
-        lu: false,
-      },
-    });
+    return prisma.notification.count({ where: { userId, lu: false } });
   }
 
-  // 👁 Marquer comme lue
   async markAsRead(id: number) {
-    return prismaClient.notification.update({
+    return prisma.notification.update({
       where: { id },
-      data: {
-        lu: true,
-        luAt: new Date(),
-      },
+      data: { lu: true, luAt: new Date() },
     });
   }
 }

@@ -5,7 +5,14 @@ export default class MouvementService {
 
   // ----------------- Création d’un mouvement -----------------
   async createMouvement(data: any, prisma = prismaClient) {
-  const validated = createMouvementSchema.parse(data);
+    const result = createMouvementSchema.safeParse(data);
+
+    if (!result.success) {
+      const message = result.error.issues[0]?.message || "Erreur de validation";
+      throw new Error(message);
+    }
+
+    const validated = result.data;
 
   return prisma.mouvementEquipement.create({
     data: {
@@ -72,9 +79,7 @@ export default class MouvementService {
     });
   }
 
-  // ----------------- Récupération de tous les mouvements -----------------
-// ----------------- Récupération de tous les mouvements -----------------
-async getAllMouvements(
+  async getAllMouvements(
   page = 1,
   limit = 10,
   filters?: {
@@ -84,28 +89,27 @@ async getAllMouvements(
     search?: string;
   }
 ) {
-  // 🔹 Pagination sécurisée
-  page = Math.max(1, page);
-  limit = Math.min(Math.max(1, limit), 100);
   const skip = (page - 1) * limit;
 
-  const andConditions: any[] = [];
+  const where: any = {};
 
-  // 🔹 Filtres simples
-  if (filters?.type) andConditions.push({ type: filters.type });
-  if (filters?.equipementId) andConditions.push({ equipementId: filters.equipementId });
-  if (filters?.confirme !== undefined) andConditions.push({ confirme: filters.confirme });
+  if (filters?.type) where.type = filters.type;
+  if (filters?.equipementId) where.equipementId = filters.equipementId;
+  if (filters?.confirme !== undefined) where.confirme = filters.confirme;
 
-  // 🔹 Recherche sur le commentaire uniquement côté Prisma
-  if (filters?.search) {
-    andConditions.push({
-      commentaire: { contains: filters.search, mode: "insensitive" },
-    });
+  if (filters?.search?.trim()) {
+    const term = filters.search.trim();
+    where.OR = [
+      { commentaire: { contains: term, mode: "insensitive" } },
+      { type: { contains: term, mode: "insensitive" } },
+      { equipement: { is: { nom: { contains: term, mode: "insensitive" } } } },
+      { initiateur: { is: { nom: { contains: term, mode: "insensitive" } } } },
+      { initiateur: { is: { prenom: { contains: term, mode: "insensitive" } } } },
+      { pointServiceSource: { is: { nom: { contains: term, mode: "insensitive" } } } },
+      { pointServiceDestination: { is: { nom: { contains: term, mode: "insensitive" } } } },
+    ];
   }
 
-  const where = andConditions.length > 0 ? { AND: andConditions } : {};
-
-  // 🔹 Récupérer les mouvements avec relations
   const [data, totalCount] = await Promise.all([
     prismaClient.mouvementEquipement.findMany({
       skip,
@@ -126,21 +130,17 @@ async getAllMouvements(
     prismaClient.mouvementEquipement.count({ where }),
   ]);
 
-  // 🔹 Filtrer côté JS pour la recherche sur le nom de l'équipement
-  const filteredData = filters?.search
-    ? data.filter(m => m.equipement?.nom.toLowerCase().includes(filters.search!.toLowerCase()))
-    : data;
-
   return {
-    data: filteredData,
+    data,
     meta: {
-      total: filteredData.length, // ou totalCount si tu veux la vraie pagination backend
+      total: totalCount,
       page,
       limit,
-      totalPages: Math.ceil(filteredData.length / limit),
+      totalPages: Math.ceil(totalCount / limit),
     },
   };
 }
+
 
 
   async getMouvementById(id: number) {
@@ -160,7 +160,15 @@ async getAllMouvements(
   }
 
   async updateMouvement(id: number, data: any) {
-    const validated = updateMouvementSchema.parse(data);
+    const result = updateMouvementSchema.safeParse(data);
+
+    if (!result.success) {
+      const message = result.error.issues[0]?.message || "Erreur de validation";
+      throw new Error(message);
+    }
+
+    const validated = result.data;  
+    
     return prismaClient.mouvementEquipement.update({
       where: { id },
       data: { ...validated },

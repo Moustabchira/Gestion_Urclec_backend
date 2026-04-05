@@ -4,6 +4,8 @@ export type StatusEquipement = "DISPONIBLE" | "ASSIGNE";
 export type TypeMouvement = "AFFECTATION" | "TRANSFERT" | "REPARATION" | "RETRAIT" | "RETROUVE" | "RETOUR_REPARATION";
 export type StatutMouvement = "EN_ATTENTE" | "CONFIRME" | "REJETE" | "EN_TRANSIT" | "EN_REPARATION" | "RETIRE" | "BON" | "ABIME" | "PERDU";
 export type StatutEvenement = "EN_ATTENTE" | "VALIDE" | "REJETE" | "PUBLIE";
+export type TypeDemande = "CONGE" | "PERMISSION";
+export type StatusDemande = "EN_ATTENTE" | "APPROUVEE" | "REFUSEE";
 
 // ---------- Agence ----------
 export interface Agence {
@@ -140,56 +142,17 @@ export interface RolePermission {
 // ---------- Demande ----------
 export interface Demande {
   id: number;
-  type: string;
+  type: TypeDemande;
   dateDebut: Date;
   dateFin: Date;
   motif: string;
-  status: string;
+  status: StatusDemande;
   pdfPath?: string | null;
   userId: number;
   user?: User;
-  conge?: Conge | null;
-  absence?: Absence | null;
-  demandePermission?: DemandePermission | null;
   decisions?: Decision[];
   currentApproverId?: number | null;
   currentApprover?: User | null;
-  createdAt: Date;
-  updatedAt: Date;
-  archive: boolean;
-  archivedAt?: Date | null;
-}
-
-// ---------- Conge ----------
-export interface Conge {
-  id: number;
-  nbJours: number;
-  demandeId: number;
-  demande?: Demande;
-  createdAt: Date;
-  updatedAt: Date;
-  archive: boolean;
-  archivedAt?: Date | null;
-}
-
-// ---------- Absence ----------
-export interface Absence {
-  id: number;
-  justification: string;
-  demandeId: number;
-  demande?: Demande;
-  createdAt: Date;
-  updatedAt: Date;
-  archive: boolean;
-  archivedAt?: Date | null;
-}
-
-// ---------- DemandePermission ----------
-export interface DemandePermission {
-  id: number;
-  duree: string;
-  demandeId: number;
-  demande?: Demande;
   createdAt: Date;
   updatedAt: Date;
   archive: boolean;
@@ -345,6 +308,8 @@ export interface Notification {
   luAt?: Date | null;
   userId: number;
   user?: User;
+  demandeId?: number | null;
+  demande?: Demande | null;
   equipementId?: number | null;
   equipement?: Equipement | null;
   mouvementId?: number | null;

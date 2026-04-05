@@ -14,7 +14,9 @@ export default class MouvementController {
       const mouvement = await mouvementService.createMouvement(data);
       res.status(201).json(mouvement);
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+    res.status(400).json({
+      error: err?.message || "Une erreur est survenue",
+    });
     }
   }
 
@@ -25,7 +27,9 @@ export default class MouvementController {
       const mouvement = await mouvementService.confirmerMouvement(id, confirmeParId);
       res.json(mouvement);
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({
+        error: err?.message || "Une erreur est survenue",
+      });
     }
   }
 
@@ -36,7 +40,9 @@ export default class MouvementController {
       const mouvement = await mouvementService.rejeterMouvement(id, confirmeParId);
       res.json(mouvement);
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({
+        error: err?.message || "Une erreur est survenue",
+      });    
     }
   }
 
